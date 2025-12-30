@@ -100,4 +100,3 @@ export const User = {
         localStorage.removeItem('mock:current_user');
     },
 };
- 
