@@ -1,29 +1,32 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Base44 APP</title>
-    <script>
-      // Prevent automatic redirects to Base44 login while allowing the site to render publicly.
-      // This blocks common navigation methods used by SDKs: assign(), replace(), open().
-      (function(){
-        const BLOCKED = 'base44.app/login';
-        const origAssign = window.location.assign.bind(window.location);
-        const origReplace = window.location.replace.bind(window.location);
-        const origOpen = window.open.bind(window);
-        function shouldBlock(url){
-          try{ return typeof url === 'string' && url.indexOf(BLOCKED) !== -1; }catch(e){return false}
-        }
-        window.location.assign = function(url){ if(shouldBlock(url)){ console.warn('Blocked redirect to', url); return; } return origAssign(url); };
-        window.location.replace = function(url){ if(shouldBlock(url)){ console.warn('Blocked redirect to', url); return; } return origReplace(url); };
-        window.open = function(url, name, specs){ if(shouldBlock(url)){ console.warn('Blocked opening', url); return null; } return origOpen(url,name,specs); };
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base44 APP</title>
+  <script>
+    // Prevent automatic redirects to Base44 login while allowing the site to render publicly.
+    // This blocks common navigation methods used by SDKs: assign(), replace(), open().
+    (function () {
+      const BLOCKED = 'base44.app/login';
+      const origAssign = window.location.assign.bind(window.location);
+      const origReplace = window.location.replace.bind(window.location);
+      const origOpen = window.open.bind(window);
+      function shouldBlock(url) {
+        try { return typeof url === 'string' && url.indexOf(BLOCKED) !== -1; } catch (e) { return false }
+      }
+      window.location.assign = function (url) { if (shouldBlock(url)) { console.warn('Blocked redirect to', url); return; } return origAssign(url); };
+      window.location.replace = function (url) { if (shouldBlock(url)) { console.warn('Blocked redirect to', url); return; } return origReplace(url); };
+      window.open = function (url, name, specs) { if (shouldBlock(url)) { console.warn('Blocked opening', url); return null; } return origOpen(url, name, specs); };
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

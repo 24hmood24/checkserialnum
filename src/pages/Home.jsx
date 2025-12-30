@@ -89,21 +89,21 @@ const validateId = (id) => {
 
 // Generate unique certificate number with sequential numbering
 const generateCertificateNumber = async () => {
-    try {
-        const latestCerts = await PurchaseCertificate.list('-certificateNumber', 1);
+  try {
+    const latestCerts = await PurchaseCertificate.list('-certificateNumber', 1);
 
-        if (latestCerts && latestCerts.length > 0) {
-            const lastNumber = parseInt(latestCerts[0].certificateNumber, 10);
-            const newNumber = lastNumber + 1;
-            return String(newNumber).padStart(10, '0');
-        } else {
-            return '0000000001';
-        }
-    } catch (error) {
-        console.error("Failed to generate certificate number:", error);
-        const timestamp = Date.now();
-        return timestamp.toString().slice(-10);
+    if (latestCerts && latestCerts.length > 0) {
+      const lastNumber = parseInt(latestCerts[0].certificateNumber, 10);
+      const newNumber = lastNumber + 1;
+      return String(newNumber).padStart(10, '0');
+    } else {
+      return '0000000001';
     }
+  } catch (error) {
+    console.error("Failed to generate certificate number:", error);
+    const timestamp = Date.now();
+    return timestamp.toString().slice(-10);
+  }
 };
 
 // Component for copying report ID
@@ -145,9 +145,9 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
   const t = (key) => translations[lang][key] || key;
 
   const tabs = [
-  { id: 'check', label: t('checkDevice'), icon: '🔍' },
-  { id: 'report', label: t('reportTheft'), icon: '🚨' },
-  { id: 'store', label: t('buyDevice'), icon: '🛒' }];
+    { id: 'check', label: t('checkDevice'), icon: '🔍' },
+    { id: 'report', label: t('reportTheft'), icon: '🚨' },
+    { id: 'store', label: t('buyDevice'), icon: '🛒' }];
 
 
   const adminTab = { id: 'admin', label: t('manageReports'), icon: '⚙️' };
@@ -168,16 +168,21 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
     setCheckResult(null);
 
     try {
+      // Guard against the functions module or SDK not being available at runtime.
+      if (typeof checkDevice !== 'function') {
+        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
+      } else {
         const { data: result } = await checkDevice({ serialNumber: serialNumber });
         setCheckResult({ ...result, originalSerial: serialNumberInput });
+      }
     } catch (error) {
-        console.error("Check device error:", error);
-        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{error.message || t('certificateErrorMessage')}</p>, status: 'danger' });
+      console.error("Check device error:", error);
+      setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{error.message || t('certificateErrorMessage')}</p>, status: 'danger' });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
-  
+
   // NEW: Function to clear check results
   const handleClearCheckResult = () => {
     setCheckResult(null);
@@ -217,12 +222,12 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
       case 'report':
         return <ReportTheftTab t={t} setNotification={setNotification} onReportAdded={handleDataUpdate} lang={lang} />;
       case 'store':
-         return <StorePurchaseTab t={t} setNotification={setNotification} onCertificateIssued={handleDataUpdate} preFilledSerial={preFilledSerial} setPreFilledSerial={setPreFilledSerial} userType={userType} />;
+        return <StorePurchaseTab t={t} setNotification={setNotification} onCertificateIssued={handleDataUpdate} preFilledSerial={preFilledSerial} setPreFilledSerial={setPreFilledSerial} userType={userType} />;
       case 'admin':
         return <AdminDashboardTab t={t} onDataUpdate={handleDataUpdate} refreshKey={refreshKey} onLogout={handleUserLogout} userType={userType} />;
       case 'user':
         if (!loggedInUser) {
-            return <div className="text-center p-10 text-white">{t('loadingData')}</div>;
+          return <div className="text-center p-10 text-white">{t('loadingData')}</div>;
         }
         // UserDashboard itself might handle showing UserProfileTab based on its internal state
         return <UserDashboard t={t} user={loggedInUser} onLogout={handleUserLogout} setNotification={setNotification} userType={userType} />;
@@ -241,76 +246,74 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
-        <div className="bg-white/90 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl mb-6 sm:mb-8 transition-all duration-300 hover:shadow-lg hover:scale-[1.01] overflow-hidden">
-            <div className="sm:hidden">
-                <div 
-                    className="flex items-center justify-between p-4 border-b border-gray-200 cursor-pointer"
-                    onClick={() => setShowMobileMenu(!showMobileMenu)}
-                >
-                    <h3 className="text-lg font-bold text-gray-800">
-                        {allTabs.find((tab) => tab.id === activeTab)?.label}
-                    </h3>
-                    <div className="flex items-center">
-                        <Menu className="w-5 h-5" />
-                    </div>
-                </div>
+      <div className="bg-white/90 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl mb-6 sm:mb-8 transition-all duration-300 hover:shadow-lg hover:scale-[1.01] overflow-hidden">
+        <div className="sm:hidden">
+          <div
+            className="flex items-center justify-between p-4 border-b border-gray-200 cursor-pointer"
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+          >
+            <h3 className="text-lg font-bold text-gray-800">
+              {allTabs.find((tab) => tab.id === activeTab)?.label}
+            </h3>
+            <div className="flex items-center">
+              <Menu className="w-5 h-5" />
             </div>
+          </div>
+        </div>
 
-            <div className="hidden sm:flex">
-                {allTabs.map((tab) =>
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-5 px-6 text-center font-bold transition-all duration-300 relative overflow-hidden ${
-            activeTab === tab.id ?
-            'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-            'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 hover:text-blue-600'}`
-            }>
+        <div className="hidden sm:flex">
+          {allTabs.map((tab) =>
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-5 px-6 text-center font-bold transition-all duration-300 relative overflow-hidden ${activeTab === tab.id ?
+                'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
+                'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 hover:text-blue-600'}`
+              }>
 
-                        <div className="flex items-center justify-center space-x-2 space-x-reverse">
-                            <span>{tab.icon}</span>
-                            <span>{tab.label}</span>
-                        </div>
-                         {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
-                    </button>
+              <div className="flex items-center justify-center space-x-2 space-x-reverse">
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </div>
+              {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
+            </button>
           )}
-            </div>
+        </div>
 
-            <div className="sm:hidden">
-                <AnimatePresence>
-                    {showMobileMenu &&
+        <div className="sm:hidden">
+          <AnimatePresence>
+            {showMobileMenu &&
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 className="bg-white">
 
-                            <div className="grid grid-cols-1 gap-2 p-4">
-                                {allTabs.map((tab) =>
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setShowMobileMenu(false); // Close menu on tab click
-                    }}
-                    className={`w-full p-4 rounded-lg transition-all duration-300 font-bold text-right ${
-                    activeTab === tab.id ?
-                    'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-                    'text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600'}`
-                    }>
+                <div className="grid grid-cols-1 gap-2 p-4">
+                  {allTabs.map((tab) =>
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setShowMobileMenu(false); // Close menu on tab click
+                      }}
+                      className={`w-full p-4 rounded-lg transition-all duration-300 font-bold text-right ${activeTab === tab.id ?
+                        'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
+                        'text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600'}`
+                      }>
 
-                                        <div className={`flex items-center justify-start space-x-3 space-x-reverse`}>
-                                            <span className="text-xl">{tab.icon}</span>
-                                            <span>{tab.label}</span>
-                                        </div>
-                                    </button>
+                      <div className={`flex items-center justify-start space-x-3 space-x-reverse`}>
+                        <span className="text-xl">{tab.icon}</span>
+                        <span>{tab.label}</span>
+                      </div>
+                    </button>
                   )}
-                            </div>
-                        </motion.div>
-              }
-                </AnimatePresence>
-            </div>
+                </div>
+              </motion.div>
+            }
+          </AnimatePresence>
         </div>
+      </div>
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -323,7 +326,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
           {renderContent()}
         </motion.div>
       </AnimatePresence>
-      
+
       {/* User Login Modal - Updated */}
       <UserLoginModal
         isOpen={showUserLogin}
@@ -346,18 +349,18 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
 
 // NEW: Helper function to mask ID numbers
 const maskIdNumber = (id) => {
-    if (!id || typeof id !== 'string' || id.length < 5) {
-        return id; // Return as is if it's not a long enough string
-    }
-    // Example: 1234567890 -> 12******90
-    return `${id.slice(0, 2)}******${id.slice(-2)}`;
+  if (!id || typeof id !== 'string' || id.length < 5) {
+    return id; // Return as is if it's not a long enough string
+  }
+  // Example: 1234567890 -> 12******90
+  return `${id.slice(0, 2)}******${id.slice(-2)}`;
 };
 
 
 // Function to print certificate using HTML - Updated with all changes
 const printCertificateHtml = (certificate, t, userType) => {
   const isAdmin = userType === 'admin';
-  
+
   // Helper to safely display data, replacing null/undefined with '-'
   const display = (value) => value || '-';
 
@@ -636,7 +639,7 @@ const printCertificateHtml = (certificate, t, userType) => {
     `);
 
   printWindow.document.close();
-  
+
   printWindow.addEventListener('load', () => {
     setTimeout(() => {
       printWindow.print();
@@ -677,7 +680,7 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
       >
         <div className="w-full max-w-md sm:max-w-2xl bg-gradient-to-br from-red-600 to-red-800 text-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 text-center pulse-animation border-2 sm:border-4 border-red-400 relative">
           {/* X Close Button */}
-          <button 
+          <button
             onClick={onClearResult}
             className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white hover:text-gray-200 transition-colors duration-200"
           >
@@ -687,7 +690,7 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
           <AlertTriangle className="w-12 sm:w-20 h-12 sm:w-20 mx-auto mb-3 sm:mb-6 text-yellow-300 drop-shadow-lg" />
           <h2 className="text-xl sm:text-4xl font-extrabold mb-2 sm:mb-4 drop-shadow-md leading-tight">{t('stolenDeviceTitle')}</h2>
           <p className="text-red-200 text-sm sm:text-lg mb-3 sm:mb-6">{t('warningDeviceStolen')}</p>
-          
+
           <div className="bg-black bg-opacity-20 rounded-xl p-3 sm:p-4 mb-4 sm:mb-8 text-xs sm:text-lg space-y-1 sm:space-y-2">
             <p><strong>{t('deviceType')}:</strong> {t(`device${checkResult.device.deviceType.charAt(0).toUpperCase() + checkResult.device.deviceType.slice(1)}`)}</p>
             <p><strong>{t('reportRegistrationDate')}:</strong> {formatDate(checkResult.device.created_date)}</p>
@@ -697,7 +700,7 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
 
           <h3 className="text-lg sm:text-2xl font-bold text-yellow-300 mb-2 sm:mb-3">{t('emergencyCall')}</h3>
           <p className="text-red-100 mb-4 sm:mb-5 text-xs sm:text-base">{t('reportTo911')}</p>
-          
+
           <a href="tel:911" className="block w-full bg-white text-red-700 hover:bg-red-100 border-2 sm:border-4 border-white rounded-xl sm:rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300 py-3 sm:py-5 px-4 sm:px-6 font-black text-lg sm:text-3xl">
             <div className="flex items-center justify-center space-x-2 space-x-reverse">
               <PhoneCall className="w-5 sm:w-8 h-5 sm:h-8 animate-bounce" />
@@ -712,109 +715,109 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
   // Default view for checking device
   return (
     <div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
-                <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
-                    <CardHeader className="p-0 mb-6">
-                        <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
-                            <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
-                               <Search className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
-                            </div>
-                            {t('checkSerialTitle')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <form onSubmit={handleCheckDevice} className="space-y-4 sm:space-y-6">
-                            <div>
-                                <label htmlFor="serialNumber" className="block text-sm font-bold text-gray-700 mb-3">{t('serialNumberLabel')}</label>
-                                <Input
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
+        <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
+          <CardHeader className="p-0 mb-6">
+            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
+                <Search className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+              </div>
+              {t('checkSerialTitle')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <form onSubmit={handleCheckDevice} className="space-y-4 sm:space-y-6">
+              <div>
+                <label htmlFor="serialNumber" className="block text-sm font-bold text-gray-700 mb-3">{t('serialNumberLabel')}</label>
+                <Input
                   id="serialNumber"
                   name="serialNumber"
                   placeholder={t('serialNumberPlaceholder')}
                   required
                   dir="ltr" className="bg-slate-200 text-left p-3 text-base flex ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm w-full sm:p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition-all duration-300 backdrop-blur-sm hover:border-blue-300 h-12 sm:h-14 sm:text-lg" />
-                            </div>
-                            <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-blue-700 hover:to-blue-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
-                                {loading ? t('checking') : `🔍 ${t('checkNowButton')}`}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+              </div>
+              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-blue-700 hover:to-blue-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
+                {loading ? t('checking') : `🔍 ${t('checkNowButton')}`}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-                <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
-                     <CardHeader className="p-0 mb-6">
-                        <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-500 to-teal-500 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
-                             <div className="bg-gradient-to-r from-green-500 to-teal-500 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
-                                <CheckCircle className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
-                            </div>
-                            {t('checkResultTitle')}
-                        </CardTitle>
-                     </CardHeader>
-                    <CardContent className="p-0">
-                        <AnimatePresence mode="wait">
-                            {loading ? (
-                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                                    <p className="text-gray-500 text-base sm:text-lg font-medium mt-4">{t('checkingDevice')}</p>
-                                </motion.div>
-                            ) : !checkResult ?
-              <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
-                                    <div className="floating-animation">
-                                        <Search className="w-16 sm:w-20 h-16 sm:h-20 mx-auto text-gray-300 mb-4 sm:mb-6" />
-                                    </div>
-                                    <p className="text-gray-500 text-base sm:text-lg font-medium">{t('enterSerialToStart')}</p>
-                                    <p className="text-gray-400 text-sm mt-2">{t('resultWillShow')}</p>
-                                </motion.div> :
-              checkResult.status === 'safe' ?
-              <motion.div key="safe" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center success-glow rounded-2xl p-2">
-                                    <div className="bg-gradient-to-r from-green-500 to-teal-500 p-4 sm:p-6 rounded-full w-16 sm:w-24 h-16 sm:h-24 mx-auto mb-4 sm:mb-6">
-                                        <CheckCircle className="w-8 sm:w-12 h-8 sm:h-12 text-white mx-auto" />
-                                    </div>
-                                    <h3 className="2xl sm:text-3xl font-bold text-green-600 mb-4">{t('safeDeviceTitle')}</h3>
-                                    <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-300 rounded-2xl p-4 sm:p-6">
-                                        <p className="text-green-800 font-bold mb-4 text-base sm:text-lg">{t('deviceSafeForTransaction')}</p>
-                                        <p className="text-green-700 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
-                                        {checkResult.certificate &&
-                  <div className="mt-4">
-                                                <h4 className="text-blue-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
-                                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
-                                                    <p className="font-semibold text-blue-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
-                                                </div>
-                                            </div>
-                  }
-                                        {/* Quick Purchase Button */}
-                                        <div className="mt-4">
-                                            <Button
-                                                onClick={() => onQuickPurchase(checkResult.originalSerial)}
-                                                className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white py-3 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                                            >
-                                                🛒 {t('buyThisDevice')}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </motion.div> : null
+        <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
+          <CardHeader className="p-0 mb-6">
+            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-500 to-teal-500 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
+              <div className="bg-gradient-to-r from-green-500 to-teal-500 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
+                <CheckCircle className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
+              </div>
+              {t('checkResultTitle')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <AnimatePresence mode="wait">
+              {loading ? (
+                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 text-base sm:text-lg font-medium mt-4">{t('checkingDevice')}</p>
+                </motion.div>
+              ) : !checkResult ?
+                <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
+                  <div className="floating-animation">
+                    <Search className="w-16 sm:w-20 h-16 sm:h-20 mx-auto text-gray-300 mb-4 sm:mb-6" />
+                  </div>
+                  <p className="text-gray-500 text-base sm:text-lg font-medium">{t('enterSerialToStart')}</p>
+                  <p className="text-gray-400 text-sm mt-2">{t('resultWillShow')}</p>
+                </motion.div> :
+                checkResult.status === 'safe' ?
+                  <motion.div key="safe" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center success-glow rounded-2xl p-2">
+                    <div className="bg-gradient-to-r from-green-500 to-teal-500 p-4 sm:p-6 rounded-full w-16 sm:w-24 h-16 sm:h-24 mx-auto mb-4 sm:mb-6">
+                      <CheckCircle className="w-8 sm:w-12 h-8 sm:h-12 text-white mx-auto" />
+                    </div>
+                    <h3 className="2xl sm:text-3xl font-bold text-green-600 mb-4">{t('safeDeviceTitle')}</h3>
+                    <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-300 rounded-2xl p-4 sm:p-6">
+                      <p className="text-green-800 font-bold mb-4 text-base sm:text-lg">{t('deviceSafeForTransaction')}</p>
+                      <p className="text-green-700 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
+                      {checkResult.certificate &&
+                        <div className="mt-4">
+                          <h4 className="text-blue-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                            <p className="font-semibold text-blue-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
+                          </div>
+                        </div>
+                      }
+                      {/* Quick Purchase Button */}
+                      <div className="mt-4">
+                        <Button
+                          onClick={() => onQuickPurchase(checkResult.originalSerial)}
+                          className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white py-3 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                        >
+                          🛒 {t('buyThisDevice')}
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div> : null
               }
-                        </AnimatePresence>
-                    </CardContent>
-                </Card>
-            </div>
+            </AnimatePresence>
+          </CardContent>
+        </Card>
+      </div>
 
-            {/* Legal Warning - Mobile Responsive */}
-            <div className="mt-6 sm:mt-8 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl p-4 sm:p-8 shadow-2xl transition-all duration-300 hover:scale-[1.02] danger-glow">
-                <div className="flex flex-col sm:flex-row items-start">
-                     <div className="bg-gradient-to-r from-red-500 to-orange-500 p-3 sm:p-4 rounded-xl mb-4 sm:mb-0 sm:ml-4 shadow-lg floating-animation">
-                        <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-white" />
-                    </div>
-                    <div>
-                        <h4 className="text-xl sm:text-2xl font-bold text-red-800 mb-3 sm:mb-4 flex items-center">
-                           ⚠️ {t('legalWarningTitle')}
-                        </h4>
-                        <p className="text-red-700 text-sm sm:text-base leading-relaxed font-medium">
-                            {t('legalWarningText')}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>);
+      {/* Legal Warning - Mobile Responsive */}
+      <div className="mt-6 sm:mt-8 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl p-4 sm:p-8 shadow-2xl transition-all duration-300 hover:scale-[1.02] danger-glow">
+        <div className="flex flex-col sm:flex-row items-start">
+          <div className="bg-gradient-to-r from-red-500 to-orange-500 p-3 sm:p-4 rounded-xl mb-4 sm:mb-0 sm:ml-4 shadow-lg floating-animation">
+            <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-white" />
+          </div>
+          <div>
+            <h4 className="text-xl sm:text-2xl font-bold text-red-800 mb-3 sm:mb-4 flex items-center">
+              ⚠️ {t('legalWarningTitle')}
+            </h4>
+            <p className="text-red-700 text-sm sm:text-base leading-relaxed font-medium">
+              {t('legalWarningText')}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>);
 };
 
 // Report Theft Tab Component - Updated to use backend-generated unique report ID
@@ -853,23 +856,23 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
     // Check if all required fields are filled
     const allFieldsFilled = formData.reporterNationalId && formData.reporterPhone && formData.deviceType && formData.serialNumber && formData.theftDate && formData.location;
     if (!allFieldsFilled) {
-        setNotification({
-            isOpen: true,
-            status: 'danger',
-            title: t('validationErrorTitle'),
-            content: <p>{t('allFieldsRequired')}</p>
-        });
-        return;
+      setNotification({
+        isOpen: true,
+        status: 'danger',
+        title: t('validationErrorTitle'),
+        content: <p>{t('allFieldsRequired')}</p>
+      });
+      return;
     }
 
     if (!validateId(formData.reporterNationalId)) {
-        setNotification({ 
-          isOpen: true, 
-          status: 'danger', 
-          title: t('validationErrorTitle'), 
-          content: <p>{t('invalidIdFormat')}</p> 
-        });
-        return;
+      setNotification({
+        isOpen: true,
+        status: 'danger',
+        title: t('validationErrorTitle'),
+        content: <p>{t('invalidIdFormat')}</p>
+      });
+      return;
     }
 
     // Normalize phone number for consistent validation
@@ -893,8 +896,16 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
     setLoading(true);
     try {
       const serialNumber = normalizeSerial(formData.serialNumber);
-      
-      const { data: checkResultData } = await checkDevice({ serialNumber: serialNumber });
+
+      let checkResultData = null;
+      if (typeof checkDevice !== 'function') {
+        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
+        setLoading(false);
+        return;
+      } else {
+        const { data: _checkResultData } = await checkDevice({ serialNumber: serialNumber });
+        checkResultData = _checkResultData;
+      }
 
       if (checkResultData?.status === 'stolen') {
         setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('deviceAlreadyReportedStolen')}</p>, status: 'danger' });
@@ -910,7 +921,7 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
           setLoading(false);
           return;
         }
-        
+
         // Check device type match
         if (cert.deviceType !== formData.deviceType) {
           setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('deviceTypeMismatchError')}</p>, status: 'danger' });
@@ -921,21 +932,21 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
         // Get the latest user data for phone comparison
         const { data: ownerData } = await findUserByNationalId({ nationalId: cert.buyerId });
         if (!ownerData?.user) {
-           setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterNotOwnerError')}</p>, status: 'danger' });
-           setLoading(false);
-           return;
+          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterNotOwnerError')}</p>, status: 'danger' });
+          setLoading(false);
+          return;
         }
 
         // Normalize both phone numbers for comparison
         const userPhoneNormalized = normalizePhoneNumber(ownerData.user.phone_number);
         const inputPhoneNormalized = normalizePhoneNumber(formData.reporterPhone);
-        
+
         if (userPhoneNormalized !== inputPhoneNormalized) {
-           setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterPhoneMismatchError')}</p>, status: 'danger' });
-           setLoading(false);
-           return;
+          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterPhoneMismatchError')}</p>, status: 'danger' });
+          setLoading(false);
+          return;
         }
-        
+
         await PurchaseCertificate.update(cert.id, { status: 'stolen' });
       }
 
@@ -952,20 +963,20 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
         theftDetails: formData.theftDetails.trim() || '',
         status: 'active'
       };
-      
+
       // Use the backend function to create the report
       const { data: newReport } = await createStolenDeviceReport(reportData);
-      
+
       onReportAdded();
       setNotification({
         isOpen: true, status: 'success', title: t('reportSuccessTitle'),
         content: <div>
-                    <p>{t('reportSuccessMessage')}</p>
-                    <p className="font-bold text-blue-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
-                    <CopyButton text={newReport.reportId} t={t} />
-                </div>
+          <p>{t('reportSuccessMessage')}</p>
+          <p className="font-bold text-blue-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
+          <CopyButton text={newReport.reportId} t={t} />
+        </div>
       });
-      
+
       // Reset form
       setFormData({
         reporterNationalId: '', reporterPhone: '',
@@ -985,96 +996,96 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
 
   return (
     <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl p-6 max-w-2xl mx-auto">
-            <CardHeader>
-                <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-                    <ShieldAlert className="w-6 h-6 ml-2 text-red-600" />
-                    {t('reportTheftTitle')}
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <Input
-                            name="reporterNationalId"
-                            type="tel"
-                            inputMode="numeric"
-                            value={formData.reporterNationalId}
-                            onChange={handleChange}
-                            placeholder={t('reporterNationalId')}
-                            dir="ltr" 
-                            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
+      <CardHeader>
+        <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+          <ShieldAlert className="w-6 h-6 ml-2 text-red-600" />
+          {t('reportTheftTitle')}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Input
+              name="reporterNationalId"
+              type="tel"
+              inputMode="numeric"
+              value={formData.reporterNationalId}
+              onChange={handleChange}
+              placeholder={t('reporterNationalId')}
+              dir="ltr"
+              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
 
-                        <Input
-                            name="reporterPhone"
-                            type="tel"
-                            inputMode="numeric"
-                            value={formData.reporterPhone}
-                            onChange={handleChange}
-                            placeholder={t('reporterPhone')} 
-                            dir="ltr" 
-                            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
-                    </div>
-                     <Select name="deviceType" onValueChange={(v) => handleSelectChange('deviceType', v)} required>
-                        <SelectTrigger className="bg-slate-200 px-3 py-2 text-sm flex h-10 w-full items-center justify-between rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="phone">{t('devicePhone')}</SelectItem>
-                            <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
-                            <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
-                            <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
-                            <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
-                            <SelectItem value="other">{t('deviceOther')}</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Input
-                        name="serialNumber"
-                        // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
-                        value={formData.serialNumber}
-                        onChange={handleChange}
-                        placeholder={t('serialNumberLabel')}
-                        dir="ltr" 
-                        className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                        required 
-                    />
+            <Input
+              name="reporterPhone"
+              type="tel"
+              inputMode="numeric"
+              value={formData.reporterPhone}
+              onChange={handleChange}
+              placeholder={t('reporterPhone')}
+              dir="ltr"
+              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
+          </div>
+          <Select name="deviceType" onValueChange={(v) => handleSelectChange('deviceType', v)} required>
+            <SelectTrigger className="bg-slate-200 px-3 py-2 text-sm flex h-10 w-full items-center justify-between rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="phone">{t('devicePhone')}</SelectItem>
+              <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
+              <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
+              <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
+              <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
+              <SelectItem value="other">{t('deviceOther')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            name="serialNumber"
+            // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
+            value={formData.serialNumber}
+            onChange={handleChange}
+            placeholder={t('serialNumberLabel')}
+            dir="ltr"
+            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            required
+          />
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDate')} <span className="text-red-500">*</span></label>
-                            <Input name="theftDate" type="date" value={formData.theftDate} onChange={handleChange} required className="bg-slate-200 px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" />
-                        </div>
-                        <div>
-                            {/* Empty div for spacing, location selector goes below */}
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">{t('theftLocation')} <span className="text-red-500">*</span></label>
-                        <LocationSelector
-                            value={formData.location}
-                            onChange={handleLocationChange}
-                            required={true}
-                            lang={lang}
-                        />
-                    </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDate')} <span className="text-red-500">*</span></label>
+              <Input name="theftDate" type="date" value={formData.theftDate} onChange={handleChange} required className="bg-slate-200 px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" />
+            </div>
+            <div>
+              {/* Empty div for spacing, location selector goes below */}
+            </div>
+          </div>
 
-                    <Textarea
-                        name="theftDetails"
-                        value={formData.theftDetails}
-                        onChange={handleChange}
-                        placeholder={t('theftDetails')}
-                        dir={translations[t('lang')].dir} 
-                        className="bg-slate-200 text-right px-3 py-2 text-sm flex min-h-[80px] w-full rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" 
-                    />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">{t('theftLocation')} <span className="text-red-500">*</span></label>
+            <LocationSelector
+              value={formData.location}
+              onChange={handleLocationChange}
+              required={true}
+              lang={lang}
+            />
+          </div>
 
-                    <Button type="submit" disabled={loading} className="w-full bg-red-600 text-white hover:bg-red-700 h-12">
-                        {loading ? t('sending') : t('submitReportButton')}
-                    </Button>
-                </form>
-            </CardContent>
-        </Card>);
+          <Textarea
+            name="theftDetails"
+            value={formData.theftDetails}
+            onChange={handleChange}
+            placeholder={t('theftDetails')}
+            dir={translations[t('lang')].dir}
+            className="bg-slate-200 text-right px-3 py-2 text-sm flex min-h-[80px] w-full rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+
+          <Button type="submit" disabled={loading} className="w-full bg-red-600 text-white hover:bg-red-700 h-12">
+            {loading ? t('sending') : t('submitReportButton')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>);
 
 };
 
@@ -1093,7 +1104,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
   useEffect(() => {
     if (preFilledSerial) {
-      setFormData(prev => ({...prev, serialNumber: preFilledSerial}));
+      setFormData(prev => ({ ...prev, serialNumber: preFilledSerial }));
       setPreFilledSerial('');
     }
   }, [preFilledSerial, setPreFilledSerial]);
@@ -1143,7 +1154,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
     // Validate required fields
     if (!formData.serialNumber || !formData.deviceType || !formData.buyerId ||
-        !formData.buyerName || !formData.sellerId || !formData.sellerPhone || !formData.purchasePrice) {
+      !formData.buyerName || !formData.sellerId || !formData.sellerPhone || !formData.purchasePrice) {
       setNotification({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('allFieldsRequired')}</p>, status: 'danger' });
       return;
     }
@@ -1181,13 +1192,13 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
       // Backend `findUserByNationalId` now works reliably with plaintext.
       const { data: buyerCheckResponse } = await findUserByNationalId({ nationalId: formData.buyerId });
-      
+
       if (!buyerCheckResponse?.exists || !buyerCheckResponse?.data?.user) {
-        setNotification({ 
-          isOpen: true, 
-          title: t('certificateErrorTitle'), 
-          content: <p>{t('buyerNotFound')}</p>, 
-          status: 'danger' 
+        setNotification({
+          isOpen: true,
+          title: t('certificateErrorTitle'),
+          content: <p>{t('buyerNotFound')}</p>,
+          status: 'danger'
         });
         setLoading(false);
         return;
@@ -1195,19 +1206,19 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       const buyerUser = buyerCheckResponse.data.user;
 
       const { data: sellerCheckResponse } = await findUserByNationalId({ nationalId: formData.sellerId });
-      
+
       if (!sellerCheckResponse?.exists || !sellerCheckResponse?.data?.user) {
-        setNotification({ 
-          isOpen: true, 
-          title: t('certificateErrorTitle'), 
-          content: <p>{t('sellerNotFound')}</p>, 
-          status: 'danger' 
+        setNotification({
+          isOpen: true,
+          title: t('certificateErrorTitle'),
+          content: <p>{t('sellerNotFound')}</p>,
+          status: 'danger'
         });
         setLoading(false);
         return;
       }
       const sellerUser = sellerCheckResponse.data.user;
-      
+
       // NEW: Verify seller's phone number matches what's registered
       if (sellerUser.phone_number !== formData.sellerPhone) {
         setNotification({
@@ -1219,9 +1230,17 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
         setLoading(false);
         return;
       }
-      
+
       // Backend `checkDevice` will handle plaintext ID comparison
-      const { data: checkResultData } = await checkDevice({ serialNumber: normalizedSerialNumber });
+      let checkResultData = null;
+      if (typeof checkDevice !== 'function') {
+        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
+        setLoading(false);
+        return;
+      } else {
+        const { data: _checkResultData } = await checkDevice({ serialNumber: normalizedSerialNumber });
+        checkResultData = _checkResultData;
+      }
 
       if (checkResultData.status === 'stolen') {
         setNotification({
@@ -1240,14 +1259,14 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
         // NEW: Validate that the selected device type matches the registered one
         if (existingCert.deviceType !== formData.deviceType) {
-            setNotification({
-                isOpen: true,
-                title: t('ownershipErrorTitle'),
-                content: <p>{t('deviceTypeMismatchError')}</p>,
-                status: 'danger'
-            });
-            setLoading(false);
-            return;
+          setNotification({
+            isOpen: true,
+            title: t('ownershipErrorTitle'),
+            content: <p>{t('deviceTypeMismatchError')}</p>,
+            status: 'danger'
+          });
+          setLoading(false);
+          return;
         }
 
         // Check if seller is the current owner (checkDevice already returns plaintext buyerId for comparison)
@@ -1274,8 +1293,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       // Generate new certificate
       const newCertificateNumber = await generateCertificateNumber();
       const buyerIdType = detectIdType(formData.buyerId);
-      const sellerIdType = detectIdType(formData.sellerId); 
-      
+      const sellerIdType = detectIdType(formData.sellerId);
+
 
       const certificateData = {
         certificateNumber: newCertificateNumber,
@@ -1296,10 +1315,10 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       // Use the new backend function to create the certificate
       const { data: newCertificate } = await createPurchaseCertificate(certificateData);
       onCertificateIssued();
-      
-      setNotification({ 
-        isOpen: true, 
-        title: t('certificateIssuedTitle'), 
+
+      setNotification({
+        isOpen: true,
+        title: t('certificateIssuedTitle'),
         content: (
           <div>
             <p>{t('certificateIssuedMessage')}</p>
@@ -1308,8 +1327,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
             </Button>
           </div>
-        ), 
-        status: 'success' 
+        ),
+        status: 'success'
       });
 
       // Reset form
@@ -1325,11 +1344,11 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
     } catch (error) {
       console.error("Certificate creation error:", error);
-      setNotification({ 
-        isOpen: true, 
-        title: t('certificateErrorTitle'), 
-        content: <p>{error.response?.data?.message || t('certificateErrorMessage')}</p>, 
-        status: 'danger' 
+      setNotification({
+        isOpen: true,
+        title: t('certificateErrorTitle'),
+        content: <p>{error.response?.data?.message || t('certificateErrorMessage')}</p>,
+        status: 'danger'
       });
     } finally {
       setLoading(false);
@@ -1338,110 +1357,110 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
   return (
     <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl p-6 max-w-2xl mx-auto">
-            <CardHeader>
-                <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-                    <ShoppingCart className="w-6 h-6 ml-2 text-green-600" />
-                    {t('buyDeviceTitle')}
-                </CardTitle>
-                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-blue-800 text-sm">
-                        <strong>{t('forBuyer')}:</strong> {t('forBuyerText')}
-                    </p>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                     <div className="grid md:grid-cols-2 gap-4">
-                        <Input
-                            name="buyerId"
-                            type="tel"
-                            inputMode="numeric"
-                            value={formData.buyerId}
-                            onChange={handleChange}
-                            placeholder={t('buyerId')}
-                            dir="ltr" 
-                            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
+      <CardHeader>
+        <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+          <ShoppingCart className="w-6 h-6 ml-2 text-green-600" />
+          {t('buyDeviceTitle')}
+        </CardTitle>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-blue-800 text-sm">
+            <strong>{t('forBuyer')}:</strong> {t('forBuyerText')}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Input
+              name="buyerId"
+              type="tel"
+              inputMode="numeric"
+              value={formData.buyerId}
+              onChange={handleChange}
+              placeholder={t('buyerId')}
+              dir="ltr"
+              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
 
-                        <Input
-                            name="buyerName"
-                            value={formData.buyerName}
-                            onChange={handleChange}
-                            placeholder={t('buyerName')}
-                            dir={translations[t('lang')].dir} 
-                            className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
-                    </div>
+            <Input
+              name="buyerName"
+              value={formData.buyerName}
+              onChange={handleChange}
+              placeholder={t('buyerName')}
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
+          </div>
 
-                     <div className="grid md:grid-cols-2 gap-4">
-                        <Input
-                            name="sellerId"
-                            type="tel"
-                            inputMode="numeric"
-                            value={formData.sellerId}
-                            onChange={handleChange}
-                            placeholder={t('sellerId')}
-                            dir="ltr" 
-                            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
+          <div className="grid md:grid-cols-2 gap-4">
+            <Input
+              name="sellerId"
+              type="tel"
+              inputMode="numeric"
+              value={formData.sellerId}
+              onChange={handleChange}
+              placeholder={t('sellerId')}
+              dir="ltr"
+              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
 
-                        <Input
-                            name="sellerPhone"
-                            type="tel"
-                            inputMode="numeric"
-                            value={formData.sellerPhone}
-                            onChange={handleChange}
-                            placeholder={t('sellerPhone')}
-                            dir="ltr" 
-                            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                            required 
-                        />
-                    </div>
+            <Input
+              name="sellerPhone"
+              type="tel"
+              inputMode="numeric"
+              value={formData.sellerPhone}
+              onChange={handleChange}
+              placeholder={t('sellerPhone')}
+              dir="ltr"
+              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              required
+            />
+          </div>
 
-                    <Select name="deviceType" onValueChange={(v) => handleSelectChange('deviceType', v)} required>
-                        <SelectTrigger className="bg-slate-200 px-3 py-2 text-sm flex h-10 w-full items-center justify-between rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
-                         <SelectContent>
-                            <SelectItem value="phone">{t('devicePhone')}</SelectItem>
-                            <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
-                            <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
-                            <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
-                            <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
-                            <SelectItem value="other">{t('deviceOther')}</SelectItem>
-                        </SelectContent>
-                    </Select>
+          <Select name="deviceType" onValueChange={(v) => handleSelectChange('deviceType', v)} required>
+            <SelectTrigger className="bg-slate-200 px-3 py-2 text-sm flex h-10 w-full items-center justify-between rounded-md border border-input ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="phone">{t('devicePhone')}</SelectItem>
+              <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
+              <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
+              <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
+              <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
+              <SelectItem value="other">{t('deviceOther')}</SelectItem>
+            </SelectContent>
+          </Select>
 
-                    <Input
-                        name="serialNumber"
-                        // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
-                        value={formData.serialNumber}
-                        onChange={handleChange}
-                        placeholder={t('serialNumberLabel')}
-                        dir="ltr" 
-                        className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                        required 
-                    />
+          <Input
+            name="serialNumber"
+            // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
+            value={formData.serialNumber}
+            onChange={handleChange}
+            placeholder={t('serialNumberLabel')}
+            dir="ltr"
+            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            required
+          />
 
-                    <Input
-                        name="purchasePrice"
-                        type="text"
-                        inputMode="decimal"
-                        value={formData.purchasePrice}
-                        onChange={handleChange}
-                        placeholder={t('purchasePrice')}
-                        dir="ltr" 
-                        className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                        required 
-                    />
-                    
-                    <Button type="submit" disabled={loading} className="w-full bg-green-600 text-white hover:bg-green-700 h-12">
-                        {loading ? t('processing') : t('checkAndRegisterButton')}
-                    </Button>
-                </form>
-            </CardContent>
-        </Card>);
+          <Input
+            name="purchasePrice"
+            type="text"
+            inputMode="decimal"
+            value={formData.purchasePrice}
+            onChange={handleChange}
+            placeholder={t('purchasePrice')}
+            dir="ltr"
+            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            required
+          />
+
+          <Button type="submit" disabled={loading} className="w-full bg-green-600 text-white hover:bg-green-700 h-12">
+            {loading ? t('processing') : t('checkAndRegisterButton')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>);
 
 };
 
@@ -1450,7 +1469,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
   const [activeAdminTab, setActiveAdminTab] = useState('reports');
   const [searchTerm, setSearchTerm] = useState('');
   const [certSearchTerm, setCertSearchTerm] = useState('');
-  
+
   const [regionFilter, setRegionFilter] = useState('');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState('');
 
@@ -1476,12 +1495,12 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
       const { data } = await getAdminDashboardData();
       const devices = data.stolenDevices || [];
       const certs = data.certificates || [];
-      
+
       setAdminStolenDevices(devices);
       setAdminCertificates(certs);
 
       const lastCheck = new Date(lastCheckTime);
-      const newReports = devices.filter(device => 
+      const newReports = devices.filter(device =>
         new Date(device.created_date) > lastCheck
       );
       setNewReportsCount(newReports.length);
@@ -1524,13 +1543,13 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
 
   const handleRejectClosure = async (report) => {
     try {
-      await updateStolenDeviceReport({ 
-        reportId: report.id, 
-        updates: { 
+      await updateStolenDeviceReport({
+        reportId: report.id,
+        updates: {
           status: 'active',
           closureRequestReason: null,
           closureRequestDetails: null
-        } 
+        }
       });
       fetchAdminData();
       setEditingReport(null); // Close the edit view
@@ -1568,31 +1587,31 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
 
   const filteredCertificates = certSearchTerm
     ? adminCertificates.filter((cert) => {
-        // 1. Normalize Arabic numerals to English and convert to lowercase for general search
-        const normalizedSearchInput = normalizeNumbers(certSearchTerm);
-        const searchLower = normalizedSearchInput.toLowerCase();
+      // 1. Normalize Arabic numerals to English and convert to lowercase for general search
+      const normalizedSearchInput = normalizeNumbers(certSearchTerm);
+      const searchLower = normalizedSearchInput.toLowerCase();
 
-        // 2. Create a "smart search" version for the certificate number
-        let smartSearchNumber = null;
-        // Check if the normalized search term is purely a number
-        if (/^\d+$/.test(normalizedSearchInput)) {
-          // Pad the number with leading zeros to match the 10-digit format
-          smartSearchNumber = normalizedSearchInput.padStart(10, '0');
-        }
+      // 2. Create a "smart search" version for the certificate number
+      let smartSearchNumber = null;
+      // Check if the normalized search term is purely a number
+      if (/^\d+$/.test(normalizedSearchInput)) {
+        // Pad the number with leading zeros to match the 10-digit format
+        smartSearchNumber = normalizedSearchInput.padStart(10, '0');
+      }
 
-        // 3. Return true if any condition is met
-        return (
-          // Use the smart search number to find a direct match for certificateNumber
-          (smartSearchNumber && cert.certificateNumber === smartSearchNumber) ||
-          
-          // Keep the original search logic for all other fields
-          (cert.certificateNumber && cert.certificateNumber.toLowerCase().includes(searchLower)) ||
-          (cert.serialNumber && String(cert.serialNumber).toLowerCase().includes(searchLower)) ||
-          (cert.buyerId && String(cert.buyerId).toLowerCase().includes(searchLower)) ||
-          (cert.buyerName && String(cert.buyerName).toLowerCase().includes(searchLower)) ||
-          (cert.sellerNationalId && String(cert.sellerNationalId).toLowerCase().includes(searchLower))
-        );
-      })
+      // 3. Return true if any condition is met
+      return (
+        // Use the smart search number to find a direct match for certificateNumber
+        (smartSearchNumber && cert.certificateNumber === smartSearchNumber) ||
+
+        // Keep the original search logic for all other fields
+        (cert.certificateNumber && cert.certificateNumber.toLowerCase().includes(searchLower)) ||
+        (cert.serialNumber && String(cert.serialNumber).toLowerCase().includes(searchLower)) ||
+        (cert.buyerId && String(cert.buyerId).toLowerCase().includes(searchLower)) ||
+        (cert.buyerName && String(cert.buyerName).toLowerCase().includes(searchLower)) ||
+        (cert.sellerNationalId && String(cert.sellerNationalId).toLowerCase().includes(searchLower))
+      );
+    })
     : adminCertificates;
 
   const handleToggleEdit = (report) => {
@@ -1652,7 +1671,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
     }
 
     try {
-      const updatedData = { 
+      const updatedData = {
         ...editFormData,
         // The serial number is normalized on the backend if edited (removed client-side normalizeSerial)
       };
@@ -1673,533 +1692,531 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
     setHistoryLoading(true);
     setShowHistoryModal(true);
     try {
-        const history = await PurchaseCertificate.filter({ serialNumber: serialNumber }, '-created_date');
-        setHistoryCertificates(history);
+      const history = await PurchaseCertificate.filter({ serialNumber: serialNumber }, '-created_date');
+      setHistoryCertificates(history);
     } catch (error) {
-        console.error("Failed to fetch certificate history:", error);
+      console.error("Failed to fetch certificate history:", error);
     } finally {
-        setHistoryLoading(false);
+      setHistoryLoading(false);
     }
   };
 
   return (
     <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl p-4 sm:p-6">
-            <CardHeader className="p-0 sm:p-2">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                    <CardTitle className="text-xl font-bold text-gray-800 flex items-center">
-                        <UserCog className="w-6 h-6 ml-2 text-blue-600" />
-                        {t('manageReports')}
-                    </CardTitle>
-                    <Button 
-                        onClick={onLogout}
-                        variant="outline" 
-                        className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto"
-                    >
-                        <LogOut className="w-4 h-4" />
-                        {t('logout')}
-                    </Button>
+      <CardHeader className="p-0 sm:p-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+          <CardTitle className="text-xl font-bold text-gray-800 flex items-center">
+            <UserCog className="w-6 h-6 ml-2 text-blue-600" />
+            {t('manageReports')}
+          </CardTitle>
+          <Button
+            onClick={onLogout}
+            variant="outline"
+            className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto"
+          >
+            <LogOut className="w-4 h-4" />
+            {t('logout')}
+          </Button>
+        </div>
+        <div className="flex border-b">
+          <button
+            onClick={() => handleAdminTabChange('reports')}
+            className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          >
+            {t('theftReports')}
+            {newReportsCount > 0 && (
+              <span className="absolute top-0 right-0 sm:-top-1 sm:-right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {newReportsCount > 99 ? '99+' : newReportsCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => handleAdminTabChange('certs')}
+            className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          >
+            {t('certificates')}
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {activeAdminTab === 'reports' && (
+          <div className="space-y-4">
+            {newReportsCount > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4">
+                <div className="flex items-center">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 ml-2" />
+                  <p className="text-yellow-800 font-semibold text-sm sm:text-base">
+                    {newReportsCount === 1
+                      ? t('oneNewReport')
+                      : `${t('newReportsAlert')} ${newReportsCount} ${t('newReports')}`
+                    }
+                  </p>
                 </div>
-                <div className="flex border-b">
-                     <button 
-                        onClick={() => handleAdminTabChange('reports')} 
-                        className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-                     >
-                        {t('theftReports')}
-                        {newReportsCount > 0 && (
-                          <span className="absolute top-0 right-0 sm:-top-1 sm:-right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                            {newReportsCount > 99 ? '99+' : newReportsCount}
+              </div>
+            )}
+
+            <div className="space-y-4 mb-6 bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('searchReports')}</label>
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={t('searchReports')}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('filterByRegion')}</label>
+                  <Select value={regionFilter} onValueChange={setRegionFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t('allRegions')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="null">{t('allRegions')}</SelectItem>
+                      <SelectItem value="الشرقية">{t('easternRegion')}</SelectItem>
+                      <SelectItem value="الرياض">{t('riyadhRegion')}</SelectItem>
+                      <SelectItem value="مكة المكرمة">{t('makkahRegion')}</SelectItem>
+                      <SelectItem value="المدينة المنورة">{t('madinahRegion')}</SelectItem>
+                      <SelectItem value="القصيم">{t('qassimRegion')}</SelectItem>
+                      <SelectItem value="حائل">{t('hailRegion')}</SelectItem>
+                      <SelectItem value="الحدود الشمالية">{t('northernBordersRegion')}</SelectItem>
+                      <SelectItem value="الجوف">{t('joufRegion')}</SelectItem>
+                      <SelectItem value="تبوك">{t('tabukRegion')}</SelectItem>
+                      <SelectItem value="نجران">{t('najranRegion')}</SelectItem>
+                      <SelectItem value="جازان">{t('jazanRegion')}</SelectItem>
+                      <SelectItem value="عسير">{t('asirRegion')}</SelectItem>
+                      <SelectItem value="الباحة">{t('bahahRegion')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('filterByDeviceType')}</label>
+                  <Select value={deviceTypeFilter} onValueChange={setDeviceTypeFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t('allDeviceTypes')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="null">{t('allDeviceTypes')}</SelectItem>
+                      <SelectItem value="phone">{t('devicePhone')}</SelectItem>
+                      <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
+                      <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
+                      <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
+                      <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
+                      <SelectItem value="other">{t('deviceOther')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {(regionFilter && regionFilter !== 'null' || deviceTypeFilter && deviceTypeFilter !== 'null' || searchTerm) && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-sm text-gray-600 px-2 py-1 rounded text-xs">
+                    {t('activeFilters')}:
+                  </span>
+                  {searchTerm && (
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                      {t('searchText')}: {searchTerm}
+                    </span>
+                  )}
+                  {regionFilter && regionFilter !== 'null' && (
+                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                      {t('region')}: {regionFilter}
+                    </span>
+                  )}
+                  {deviceTypeFilter && deviceTypeFilter !== 'null' && (
+                    <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                      {t('deviceType')}: {t(`device${deviceTypeFilter.charAt(0).toUpperCase() + deviceTypeFilter.slice(1)}`)}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setRegionFilter('null');
+                      setDeviceTypeFilter('null');
+                    }}
+                  >
+                    <X className="w-4 h-4 ml-1" />{t('clearFilters')}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {adminLoading ? (
+              <div className="text-center p-8 text-gray-500">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                <p>{t('loadingData')}</p>
+              </div>
+            ) : (
+              <div>
+                {/* Desktop Table View */}
+                <div className="overflow-x-auto hidden md:block">
+                  <table className="w-full text-right">
+                    <thead className="border-b">
+                      <tr>
+                        <th className="p-2">{t('reportId')}</th>
+                        <th className="p-2">{t('serialNumberLabel')}</th>
+                        <th className="p-2">{t('deviceType')}</th>
+                        <th className="p-2">{t('reportRegistrationDate')}</th>
+                        <th className="p-2">{t('theftDate')}</th>
+                        <th className="p-2">{t('location')}</th>
+                        <th className="p-2">{t('status')}</th>
+                        <th className="p-2">{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredReports.map((device) =>
+                        <React.Fragment key={device.id}>
+                          <tr className={`border-b hover:bg-gray-50 ${device.status === 'pending_closure' ? 'bg-yellow-50' : ''}`}>
+                            <td className="p-2 font-bold text-blue-600">{device.reportId}</td>
+                            <td className="p-2 font-mono" dir="ltr" style={{ textAlign: 'left' }}>{device.serialNumber}</td>
+                            <td className="p-2">{t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</td>
+                            <td className="p-2">{new Date(device.created_date).toLocaleDateString(translations[t('lang')].locale)}</td>
+                            <td className="p-2">{new Date(device.theftDate).toLocaleDateString(translations[t('lang')].locale)}</td>
+                            <td className="p-2">{device.location}</td>
+                            <td className="p-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${device.status === 'active' ? 'bg-red-100 text-red-800' :
+                                device.status === 'pending_closure' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-green-100 text-green-800'
+                                }`}>
+                                {t(`status${device.status.charAt(0).toUpperCase() + device.status.slice(1)}`)}
+                              </span>
+                            </td>
+                            <td className="p-2">
+                              <Button size="sm" variant="outline" onClick={() => handleToggleEdit(device)}>
+                                <Edit className="w-4 h-4 ml-1" /> {editingReport?.id === device.id ? t('cancel') : t('edit')}
+                              </Button>
+                            </td>
+                          </tr>
+                          {editingReport?.id === device.id &&
+                            <tr className="bg-gray-50">
+                              <td colSpan="8" className="p-0">
+                                {/* Edit Form - Remains the same */}
+                                <div className="bg-white p-6 m-4 rounded-lg shadow-md border space-y-4">
+                                  <h3 className="text-lg font-bold mb-4 text-blue-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
+
+                                  {device.status === 'pending_closure' && (
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                                      <h4 className="font-bold text-yellow-800">{t('userClosureRequest')}</h4>
+                                      <p><strong>{t('reasonLabel')}:</strong> {device.closureRequestReason === 'device_found' ? t('deviceFound') : t('otherReason')}</p>
+                                      {device.closureRequestDetails && <p><strong>{t('detailsLabel')}:</strong> {device.closureRequestDetails}</p>}
+                                      <div className="flex gap-2 mt-4">
+                                        <Button onClick={() => handleApproveClosure(device)} className="bg-green-600 hover:bg-green-700">{t('approveClosure')}</Button>
+                                        <Button onClick={() => handleRejectClosure(device)} variant="destructive">{t('rejectClosure')}</Button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterIdTypeLabel')}</label>
+                                      <p className="font-semibold text-gray-800">
+                                        {device.reporterIdType === 'national_id' ? t('idNational') :
+                                          device.reporterIdType === 'resident_id' ? t('idResident') :
+                                            device.reporterIdType === 'commercial_reg' ? t('idCommercial') :
+                                              device.reporterIdType}
+                                      </p>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterNationalId')}</label>
+                                      <p className="font-semibold font-mono text-gray-800" dir="ltr" style={{ textAlign: 'left' }}>{device.reporterNationalId}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('serialNumberLabel')}</label>
+                                      <Input
+                                        name="serialNumber"
+                                        value={editFormData.serialNumber || ''}
+                                        onChange={handleEditChange}
+                                        dir="ltr"
+                                        className="text-left" />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('reporterPhone')}</label>
+                                      <Input
+                                        name="reporterPhone"
+                                        value={editFormData.reporterPhone || ''}
+                                        onChange={handleEditChange}
+                                        placeholder="05________"
+                                        dir="ltr"
+                                        className="text-left" />
+                                      <p className="text-xs text-gray-500 mt-1">{t('phoneValidationHint')}</p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('deviceType')}</label>
+                                      <Select value={editFormData.deviceType || ''} onValueChange={(v) => setEditFormData({ ...editFormData, deviceType: v })}>
+                                        <SelectTrigger><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="phone">{t('devicePhone')}</SelectItem>
+                                          <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
+                                          <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
+                                          <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
+                                          <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
+                                          <SelectItem value="other">{t('deviceOther')}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDate')}</label>
+                                      <Input
+                                        name="theftDate"
+                                        type="date"
+                                        value={editFormData.theftDate || ''}
+                                        onChange={handleEditChange} />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
+                                      <Input
+                                        name="location"
+                                        value={editFormData.location || ''}
+                                        onChange={handleEditChange}
+                                        placeholder={t('theftLocation')}
+                                        dir={translations[t('lang')].dir} />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDetails')}</label>
+                                      <Textarea
+                                        name="theftDetails"
+                                        value={editFormData.theftDetails || ''}
+                                        onChange={handleEditChange}
+                                        placeholder={t('theftDetails')}
+                                        dir={translations[t('lang')].dir} />
+                                    </div>
+                                  </div>
+
+                                  <div className="border-t pt-4 space-y-3">
+                                    <div className="flex items-center space-x-2 space-x-reverse">
+                                      <Checkbox
+                                        id={`status-checkbox-${device.id}`}
+                                        checked={editFormData.status === 'closed'}
+                                        onCheckedChange={(checked) => setEditFormData({ ...editFormData, status: checked ? 'closed' : 'active' })} />
+                                      <label htmlFor={`status-checkbox-${device.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                        {t('markClosed')}
+                                      </label>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                      <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                      <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          }
+                        </React.Fragment>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="space-y-4 md:hidden">
+                  {filteredReports.map((device) => (
+                    <React.Fragment key={device.id}>
+                      <div className={`p-4 border rounded-lg shadow-sm ${device.status === 'pending_closure' ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-blue-600">{device.reportId}</p>
+                            <p className="font-mono text-sm text-gray-700" dir="ltr">{device.serialNumber}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${device.status === 'active' ? 'bg-red-100 text-red-800' :
+                            device.status === 'pending_closure' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                            {t(`status${device.status.charAt(0).toUpperCase() + device.status.slice(1)}`)}
                           </span>
-                        )}
-                     </button>
-                     <button 
-                        onClick={() => handleAdminTabChange('certs')} 
-                        className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-                     >
-                        {t('certificates')}
-                     </button>
-                </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-               {activeAdminTab === 'reports' && (
-                 <div className="space-y-4">
-                    {newReportsCount > 0 && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4 mb-4">
-                        <div className="flex items-center">
-                          <AlertTriangle className="w-5 h-5 text-yellow-600 ml-2" />
-                          <p className="text-yellow-800 font-semibold text-sm sm:text-base">
-                            {newReportsCount === 1 
-                              ? t('oneNewReport')
-                              : `${t('newReportsAlert')} ${newReportsCount} ${t('newReports')}`
-                            }
-                          </p>
+                        </div>
+                        <div className="mt-3 text-sm space-y-1 text-gray-600">
+                          <p><strong>{t('deviceType')}:</strong> {t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</p>
+                          <p><strong>{t('theftDate')}:</strong> {new Date(device.theftDate).toLocaleDateString(translations[t('lang')].locale)}</p>
+                          <p><strong>{t('location')}:</strong> {device.location}</p>
+                        </div>
+                        <div className="mt-4 border-t pt-3">
+                          <Button size="sm" variant="outline" onClick={() => handleToggleEdit(device)} className="w-full">
+                            <Edit className="w-4 h-4 ml-1" /> {editingReport?.id === device.id ? t('cancel') : t('edit')}
+                          </Button>
                         </div>
                       </div>
-                    )}
-                    
-                    <div className="space-y-4 mb-6 bg-gray-50 p-4 rounded-lg">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('searchReports')}</label>
-                                <Input
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder={t('searchReports')}
-                                    className="w-full" 
-                                />
+                      {editingReport?.id === device.id && (
+                        <div className="bg-gray-50 p-4 -mt-2 rounded-b-lg border-x border-b">
+                          {/* Mobile Edit Form */}
+                          <div className="space-y-4">
+                            <h3 className="text-lg font-bold mb-2 text-blue-700">{t('editReport')}</h3>
+
+                            {device.status === 'pending_closure' && (
+                              <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4 text-sm">
+                                <h4 className="font-bold text-yellow-800">{t('userClosureRequest')}</h4>
+                                <p><strong>{t('reasonLabel')}:</strong> {device.closureRequestReason === 'device_found' ? t('deviceFound') : t('otherReason')}</p>
+                                {device.closureRequestDetails && <p><strong>{t('detailsLabel')}:</strong> {device.closureRequestDetails}</p>}
+                                <div className="flex gap-2 mt-3">
+                                  <Button size="sm" onClick={() => handleApproveClosure(device)} className="bg-green-600 hover:bg-green-700">{t('approveClosure')}</Button>
+                                  <Button size="sm" onClick={() => handleRejectClosure(device)} variant="destructive">{t('rejectClosure')}</Button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-4 text-sm mb-4">
+                              <div className="bg-white p-3 rounded-lg border">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterIdTypeLabel')}</label>
+                                <p className="font-semibold text-gray-800">{device.reporterIdType === 'national_id' ? t('idNational') : device.reporterIdType}</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg border">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterNationalId')}</label>
+                                <p className="font-semibold font-mono text-gray-800" dir="ltr">{device.reporterNationalId}</p>
+                              </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('filterByRegion')}</label>
-                                <Select value={regionFilter} onValueChange={setRegionFilter}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder={t('allRegions')} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="null">{t('allRegions')}</SelectItem>
-                                        <SelectItem value="الشرقية">{t('easternRegion')}</SelectItem>
-                                        <SelectItem value="الرياض">{t('riyadhRegion')}</SelectItem>
-                                        <SelectItem value="مكة المكرمة">{t('makkahRegion')}</SelectItem>
-                                        <SelectItem value="المدينة المنورة">{t('madinahRegion')}</SelectItem>
-                                        <SelectItem value="القصيم">{t('qassimRegion')}</SelectItem>
-                                        <SelectItem value="حائل">{t('hailRegion')}</SelectItem>
-                                        <SelectItem value="الحدود الشمالية">{t('northernBordersRegion')}</SelectItem>
-                                        <SelectItem value="الجوف">{t('joufRegion')}</SelectItem>
-                                        <SelectItem value="تبوك">{t('tabukRegion')}</SelectItem>
-                                        <SelectItem value="نجران">{t('najranRegion')}</SelectItem>
-                                        <SelectItem value="جازان">{t('jazanRegion')}</SelectItem>
-                                        <SelectItem value="عسير">{t('asirRegion')}</SelectItem>
-                                        <SelectItem value="الباحة">{t('bahahRegion')}</SelectItem>
-                                    </SelectContent>
+
+                            <div className="grid grid-cols-1 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('serialNumberLabel')}</label>
+                                <Input name="serialNumber" value={editFormData.serialNumber || ''} onChange={handleEditChange} dir="ltr" className="text-left" />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('reporterPhone')}</label>
+                                <Input name="reporterPhone" value={editFormData.reporterPhone || ''} onChange={handleEditChange} placeholder="05________" dir="ltr" className="text-left" />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('deviceType')}</label>
+                                <Select value={editFormData.deviceType || ''} onValueChange={(v) => setEditFormData({ ...editFormData, deviceType: v })}>
+                                  <SelectTrigger><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="phone">{t('devicePhone')}</SelectItem>
+                                    <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
+                                    <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
+                                    <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
+                                    <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
+                                    <SelectItem value="other">{t('deviceOther')}</SelectItem>
+                                  </SelectContent>
                                 </Select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('theftDate')}</label>
+                                <Input name="theftDate" type="date" value={editFormData.theftDate || ''} onChange={handleEditChange} />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('location')}</label>
+                                <Input name="location" value={editFormData.location || ''} onChange={handleEditChange} placeholder={t('theftLocation')} dir={translations[t('lang')].dir} />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('theftDetails')}</label>
+                                <Textarea name="theftDetails" value={editFormData.theftDetails || ''} onChange={handleEditChange} placeholder={t('theftDetails')} dir={translations[t('lang')].dir} />
+                              </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('filterByDeviceType')}</label>
-                                <Select value={deviceTypeFilter} onValueChange={setDeviceTypeFilter}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder={t('allDeviceTypes')} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="null">{t('allDeviceTypes')}</SelectItem>
-                                        <SelectItem value="phone">{t('devicePhone')}</SelectItem>
-                                        <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
-                                        <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
-                                        <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
-                                        <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
-                                        <SelectItem value="other">{t('deviceOther')}</SelectItem>
-                                    </SelectContent>
-                                </Select>
+
+                            <div className="border-t pt-4 space-y-3">
+                              <div className="flex items-center space-x-2 space-x-reverse">
+                                <Checkbox id={`status-checkbox-mobile-${device.id}`} checked={editFormData.status === 'closed'} onCheckedChange={(checked) => setEditFormData({ ...editFormData, status: checked ? 'closed' : 'active' })} />
+                                <label htmlFor={`status-checkbox-mobile-${device.id}`} className="text-sm font-medium">{t('markClosed')}</label>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
+                              </div>
                             </div>
+                          </div>
                         </div>
-                        {(regionFilter && regionFilter !== 'null' || deviceTypeFilter && deviceTypeFilter !== 'null' || searchTerm) && (
-                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <span className="text-sm text-gray-600 px-2 py-1 rounded text-xs">
-                                    {t('activeFilters')}:
-                                </span>
-                                {searchTerm && (
-                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                                        {t('searchText')}: {searchTerm}
-                                    </span>
-                                )}
-                                {regionFilter && regionFilter !== 'null' && (
-                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                                        {t('region')}: {regionFilter}
-                                    </span>
-                                )}
-                                {deviceTypeFilter && deviceTypeFilter !== 'null' && (
-                                    <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
-                                        {t('deviceType')}: {t(`device${deviceTypeFilter.charAt(0).toUpperCase() + deviceTypeFilter.slice(1)}`)}
-                                    </span>
-                                )}
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => {
-                                        setSearchTerm('');
-                                        setRegionFilter('null');
-                                        setDeviceTypeFilter('null');
-                                    }}
-                                >
-                                    <X className="w-4 h-4 ml-1" />{t('clearFilters')}
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-
-                    {adminLoading ? (
-                        <div className="text-center p-8 text-gray-500">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-                            <p>{t('loadingData')}</p>
-                        </div>
-                    ) : (
-                    <div>
-                        {/* Desktop Table View */}
-                        <div className="overflow-x-auto hidden md:block">
-                            <table className="w-full text-right">
-                                <thead className="border-b">
-                                    <tr>
-                                        <th className="p-2">{t('reportId')}</th>
-                                        <th className="p-2">{t('serialNumberLabel')}</th>
-                                        <th className="p-2">{t('deviceType')}</th>
-                                        <th className="p-2">{t('reportRegistrationDate')}</th>
-                                        <th className="p-2">{t('theftDate')}</th>
-                                        <th className="p-2">{t('location')}</th>
-                                        <th className="p-2">{t('status')}</th>
-                                        <th className="p-2">{t('actions')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredReports.map((device) =>
-                                        <React.Fragment key={device.id}>
-                                            <tr className={`border-b hover:bg-gray-50 ${device.status === 'pending_closure' ? 'bg-yellow-50' : ''}`}>
-                                                <td className="p-2 font-bold text-blue-600">{device.reportId}</td>
-                                                <td className="p-2 font-mono" dir="ltr" style={{ textAlign: 'left' }}>{device.serialNumber}</td>
-                                                <td className="p-2">{t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</td>
-                                                <td className="p-2">{new Date(device.created_date).toLocaleDateString(translations[t('lang')].locale)}</td>
-                                                <td className="p-2">{new Date(device.theftDate).toLocaleDateString(translations[t('lang')].locale)}</td>
-                                                <td className="p-2">{device.location}</td>
-                                                <td className="p-2">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                                        device.status === 'active' ? 'bg-red-100 text-red-800' :
-                                                        device.status === 'pending_closure' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-green-100 text-green-800'
-                                                    }`}>
-                                                        {t(`status${device.status.charAt(0).toUpperCase() + device.status.slice(1)}`)}
-                                                    </span>
-                                                </td>
-                                                <td className="p-2">
-                                                    <Button size="sm" variant="outline" onClick={() => handleToggleEdit(device)}>
-                                                        <Edit className="w-4 h-4 ml-1" /> {editingReport?.id === device.id ? t('cancel') : t('edit')}
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                            {editingReport?.id === device.id &&
-                                                <tr className="bg-gray-50">
-                                                    <td colSpan="8" className="p-0">
-                                                        {/* Edit Form - Remains the same */}
-                                                        <div className="bg-white p-6 m-4 rounded-lg shadow-md border space-y-4">
-                                                            <h3 className="text-lg font-bold mb-4 text-blue-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
-                                                            
-                                                            {device.status === 'pending_closure' && (
-                                                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                                                                    <h4 className="font-bold text-yellow-800">{t('userClosureRequest')}</h4>
-                                                                    <p><strong>{t('reasonLabel')}:</strong> {device.closureRequestReason === 'device_found' ? t('deviceFound') : t('otherReason')}</p>
-                                                                    {device.closureRequestDetails && <p><strong>{t('detailsLabel')}:</strong> {device.closureRequestDetails}</p>}
-                                                                    <div className="flex gap-2 mt-4">
-                                                                        <Button onClick={() => handleApproveClosure(device)} className="bg-green-600 hover:bg-green-700">{t('approveClosure')}</Button>
-                                                                        <Button onClick={() => handleRejectClosure(device)} variant="destructive">{t('rejectClosure')}</Button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-    
-                                                            <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
-                                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterIdTypeLabel')}</label>
-                                                                    <p className="font-semibold text-gray-800">
-                                                                        {device.reporterIdType === 'national_id' ? t('idNational') :
-                                                                        device.reporterIdType === 'resident_id' ? t('idResident' ) :
-                                                                        device.reporterIdType === 'commercial_reg' ? t('idCommercial') :
-                                                                        device.reporterIdType}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterNationalId')}</label>
-                                                                    <p className="font-semibold font-mono text-gray-800" dir="ltr" style={{ textAlign: 'left' }}>{device.reporterNationalId}</p>
-                                                                </div>
-                                                            </div>
-    
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('serialNumberLabel')}</label>
-                                                                    <Input
-                                                                        name="serialNumber"
-                                                                        value={editFormData.serialNumber || ''}
-                                                                        onChange={handleEditChange}
-                                                                        dir="ltr"
-                                                                        className="text-left" />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('reporterPhone')}</label>
-                                                                    <Input
-                                                                        name="reporterPhone"
-                                                                        value={editFormData.reporterPhone || ''}
-                                                                        onChange={handleEditChange}
-                                                                        placeholder="05________"
-                                                                        dir="ltr"
-                                                                        className="text-left" />
-                                                                    <p className="text-xs text-gray-500 mt-1">{t('phoneValidationHint')}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('deviceType')}</label>
-                                                                    <Select value={editFormData.deviceType || ''} onValueChange={(v) => setEditFormData({ ...editFormData, deviceType: v })}>
-                                                                        <SelectTrigger><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="phone">{t('devicePhone')}</SelectItem>
-                                                                            <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
-                                                                            <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
-                                                                            <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
-                                                                            <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
-                                                                            <SelectItem value="other">{t('deviceOther')}</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDate')}</label>
-                                                                    <Input
-                                                                        name="theftDate"
-                                                                        type="date"
-                                                                        value={editFormData.theftDate || ''}
-                                                                        onChange={handleEditChange} />
-                                                                </div>
-                                                                <div className="sm:col-span-2">
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
-                                                                    <Input
-                                                                        name="location"
-                                                                        value={editFormData.location || ''}
-                                                                        onChange={handleEditChange}
-                                                                        placeholder={t('theftLocation')}
-                                                                        dir={translations[t('lang')].dir} />
-                                                                </div>
-                                                                <div className="sm:col-span-2">
-                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('theftDetails')}</label>
-                                                                    <Textarea
-                                                                        name="theftDetails"
-                                                                        value={editFormData.theftDetails || ''}
-                                                                        onChange={handleEditChange}
-                                                                        placeholder={t('theftDetails')}
-                                                                        dir={translations[t('lang')].dir} />
-                                                                </div>
-                                                            </div>
-                                                            
-                                                            <div className="border-t pt-4 space-y-3">
-                                                                <div className="flex items-center space-x-2 space-x-reverse">
-                                                                    <Checkbox
-                                                                        id={`status-checkbox-${device.id}`}
-                                                                        checked={editFormData.status === 'closed'}
-                                                                        onCheckedChange={(checked) => setEditFormData({ ...editFormData, status: checked ? 'closed' : 'active' })} />
-                                                                    <label htmlFor={`status-checkbox-${device.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                                        {t('markClosed')}
-                                                                    </label>
-                                                                </div>
-                                                                
-                                                                <div className="flex gap-2">
-                                                                    <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
-                                                                    <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            }
-                                        </React.Fragment>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Mobile Card View */}
-                        <div className="space-y-4 md:hidden">
-                            {filteredReports.map((device) => (
-                                <React.Fragment key={device.id}>
-                                    <div className={`p-4 border rounded-lg shadow-sm ${device.status === 'pending_closure' ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="font-bold text-blue-600">{device.reportId}</p>
-                                                <p className="font-mono text-sm text-gray-700" dir="ltr">{device.serialNumber}</p>
-                                            </div>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                                device.status === 'active' ? 'bg-red-100 text-red-800' :
-                                                device.status === 'pending_closure' ? 'bg-yellow-100 text-yellow-800' :
-                                                'bg-green-100 text-green-800'
-                                            }`}>
-                                                {t(`status${device.status.charAt(0).toUpperCase() + device.status.slice(1)}`)}
-                                            </span>
-                                        </div>
-                                        <div className="mt-3 text-sm space-y-1 text-gray-600">
-                                            <p><strong>{t('deviceType')}:</strong> {t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</p>
-                                            <p><strong>{t('theftDate')}:</strong> {new Date(device.theftDate).toLocaleDateString(translations[t('lang')].locale)}</p>
-                                            <p><strong>{t('location')}:</strong> {device.location}</p>
-                                        </div>
-                                        <div className="mt-4 border-t pt-3">
-                                            <Button size="sm" variant="outline" onClick={() => handleToggleEdit(device)} className="w-full">
-                                                <Edit className="w-4 h-4 ml-1" /> {editingReport?.id === device.id ? t('cancel') : t('edit')}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    {editingReport?.id === device.id && (
-                                        <div className="bg-gray-50 p-4 -mt-2 rounded-b-lg border-x border-b">
-                                            {/* Mobile Edit Form */}
-                                            <div className="space-y-4">
-                                                <h3 className="text-lg font-bold mb-2 text-blue-700">{t('editReport')}</h3>
-                                                
-                                                {device.status === 'pending_closure' && (
-                                                    <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4 text-sm">
-                                                        <h4 className="font-bold text-yellow-800">{t('userClosureRequest')}</h4>
-                                                        <p><strong>{t('reasonLabel')}:</strong> {device.closureRequestReason === 'device_found' ? t('deviceFound') : t('otherReason')}</p>
-                                                        {device.closureRequestDetails && <p><strong>{t('detailsLabel')}:</strong> {device.closureRequestDetails}</p>}
-                                                        <div className="flex gap-2 mt-3">
-                                                            <Button size="sm" onClick={() => handleApproveClosure(device)} className="bg-green-600 hover:bg-green-700">{t('approveClosure')}</Button>
-                                                            <Button size="sm" onClick={() => handleRejectClosure(device)} variant="destructive">{t('rejectClosure')}</Button>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="grid grid-cols-1 gap-4 text-sm mb-4">
-                                                    <div className="bg-white p-3 rounded-lg border">
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterIdTypeLabel')}</label>
-                                                        <p className="font-semibold text-gray-800">{device.reporterIdType === 'national_id' ? t('idNational') : device.reporterIdType}</p>
-                                                    </div>
-                                                    <div className="bg-white p-3 rounded-lg border">
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('reporterNationalId')}</label>
-                                                        <p className="font-semibold font-mono text-gray-800" dir="ltr">{device.reporterNationalId}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('serialNumberLabel')}</label>
-                                                        <Input name="serialNumber" value={editFormData.serialNumber || ''} onChange={handleEditChange} dir="ltr" className="text-left" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('reporterPhone')}</label>
-                                                        <Input name="reporterPhone" value={editFormData.reporterPhone || ''} onChange={handleEditChange} placeholder="05________" dir="ltr" className="text-left" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('deviceType')}</label>
-                                                        <Select value={editFormData.deviceType || ''} onValueChange={(v) => setEditFormData({ ...editFormData, deviceType: v })}>
-                                                            <SelectTrigger><SelectValue placeholder={t('selectDeviceType')} /></SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="phone">{t('devicePhone')}</SelectItem>
-                                                                <SelectItem value="laptop">{t('deviceLaptop')}</SelectItem>
-                                                                <SelectItem value="tablet">{t('deviceTablet')}</SelectItem>
-                                                                <SelectItem value="watch">{t('deviceWatch')}</SelectItem>
-                                                                <SelectItem value="camera">{t('deviceCamera')}</SelectItem>
-                                                                <SelectItem value="other">{t('deviceOther')}</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('theftDate')}</label>
-                                                        <Input name="theftDate" type="date" value={editFormData.theftDate || ''} onChange={handleEditChange} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('location')}</label>
-                                                        <Input name="location" value={editFormData.location || ''} onChange={handleEditChange} placeholder={t('theftLocation')} dir={translations[t('lang')].dir} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('theftDetails')}</label>
-                                                        <Textarea name="theftDetails" value={editFormData.theftDetails || ''} onChange={handleEditChange} placeholder={t('theftDetails')} dir={translations[t('lang')].dir} />
-                                                    </div>
-                                                </div>
-                                                
-                                                <div className="border-t pt-4 space-y-3">
-                                                    <div className="flex items-center space-x-2 space-x-reverse">
-                                                        <Checkbox id={`status-checkbox-mobile-${device.id}`} checked={editFormData.status === 'closed'} onCheckedChange={(checked) => setEditFormData({ ...editFormData, status: checked ? 'closed' : 'active' })} />
-                                                        <label htmlFor={`status-checkbox-mobile-${device.id}`} className="text-sm font-medium">{t('markClosed')}</label>
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-2">
-                                                        <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
-                                                        <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </React.Fragment>
-                            ))}
-                        </div>
-                        
-                        {filteredReports.length === 0 && !adminLoading && (
-                            <div className="text-center p-8 text-gray-500">
-                                <p>{t('noReportsFound')}</p>
-                            </div>
-                        )}
-                    </div>
-                    )}
+                      )}
+                    </React.Fragment>
+                  ))}
                 </div>
-               )}
-               
-               {activeAdminTab === 'certs' && (
-                <div>
-                    <div className="mb-4">
-                        <Input
-                            value={certSearchTerm}
-                            onChange={(e) => setCertSearchTerm(e.target.value)}
-                            placeholder={t('searchCertificates')}
-                            className="w-full" />
-                    </div>
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                        {filteredCertificates.map((cert) =>
-            <div key={cert.id} className="border rounded-lg p-3 sm:p-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:shadow-md hover:bg-white">
-                                <div className="flex-grow w-full">
-                                    <div className="flex justify-between items-center gap-2">
-                                        <p className="font-bold text-blue-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-blue-900">{cert.certificateNumber}</span></p>
-                                        <p className="text-xs sm:text-sm text-gray-600 mt-1">{t('serialNumberLabel')}: <span className="font-mono">{cert.serialNumber}</span></p>
-                                        <p className="text-xs sm:text-sm text-gray-600">{t('buyerName')}: {cert.buyerName}</p>
-                                    </div>
-                                    <div className="sm:hidden flex items-center justify-end"> {/* Mobile status badge */}
-                                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${cert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                          {t(cert.status)}
-                                      </span>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0">
-                                    <Button onClick={() => handleShowHistory(cert.serialNumber)} variant="outline" size="sm" className="flex-1 sm:flex-grow-0">
-                                        {t('viewHistory')}
-                                    </Button>
-                                    <Button onClick={() => printCertificate(cert)} className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-grow-0" size="sm">
-                                        <Printer className="w-4 h-4 ml-2" />
-                                        {t('printCertificate')}
-                                    </Button>
-                                    <span className={`hidden sm:inline-flex px-2 py-1 rounded-full text-xs font-semibold ${cert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                        {t(cert.status)}
-                                    </span>
-                                </div>
-                            </div>
+
+                {filteredReports.length === 0 && !adminLoading && (
+                  <div className="text-center p-8 text-gray-500">
+                    <p>{t('noReportsFound')}</p>
+                  </div>
+                )}
+              </div>
             )}
-                    </div>
+          </div>
+        )}
 
-                    {showHistoryModal && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
-                            <div className="bg-white p-6 rounded-lg max-w-2xl w-full mx-4 shadow-xl">
-                                <h3 className="text-lg font-bold mb-4 text-blue-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
-                                {historyLoading ? (
-                                    <div className="text-center p-4">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                                        <p>{t('loadingData')}</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                                        {historyCertificates.map(hcert => (
-                                            <div key={hcert.id} className="border p-3 rounded-lg bg-gray-50">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-800">{t('certificateNumber')}: {hcert.certificateNumber}</p>
-                                                        <p className="text-sm text-gray-600">{t('buyerName')}: {hcert.buyerName}</p>
-                                                        <p className="text-sm text-gray-600">{t('issueDate')}: {new Date(hcert.issueDate).toLocaleDateString(translations[t('lang')].locale)}</p>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${hcert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                          {t(hcert.status)}
-                                                      </span>
-                                                      <Button onClick={() => printCertificate(hcert)} size="sm" variant="ghost">
-                                                          <Printer className="w-4 h-4" />
-                                                      </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div className="mt-6">
-                                    <Button variant="outline" onClick={() => setShowHistoryModal(false)}>{t('close')}</Button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+        {activeAdminTab === 'certs' && (
+          <div>
+            <div className="mb-4">
+              <Input
+                value={certSearchTerm}
+                onChange={(e) => setCertSearchTerm(e.target.value)}
+                placeholder={t('searchCertificates')}
+                className="w-full" />
+            </div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              {filteredCertificates.map((cert) =>
+                <div key={cert.id} className="border rounded-lg p-3 sm:p-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:shadow-md hover:bg-white">
+                  <div className="flex-grow w-full">
+                    <div className="flex justify-between items-center gap-2">
+                      <p className="font-bold text-blue-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-blue-900">{cert.certificateNumber}</span></p>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">{t('serialNumberLabel')}: <span className="font-mono">{cert.serialNumber}</span></p>
+                      <p className="text-xs sm:text-sm text-gray-600">{t('buyerName')}: {cert.buyerName}</p>
+                    </div>
+                    <div className="sm:hidden flex items-center justify-end"> {/* Mobile status badge */}
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${cert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {t(cert.status)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0">
+                    <Button onClick={() => handleShowHistory(cert.serialNumber)} variant="outline" size="sm" className="flex-1 sm:flex-grow-0">
+                      {t('viewHistory')}
+                    </Button>
+                    <Button onClick={() => printCertificate(cert)} className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-grow-0" size="sm">
+                      <Printer className="w-4 h-4 ml-2" />
+                      {t('printCertificate')}
+                    </Button>
+                    <span className={`hidden sm:inline-flex px-2 py-1 rounded-full text-xs font-semibold ${cert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {t(cert.status)}
+                    </span>
+                  </div>
                 </div>
-               )}
-            </CardContent>
-        </Card>);
+              )}
+            </div>
+
+            {showHistoryModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
+                <div className="bg-white p-6 rounded-lg max-w-2xl w-full mx-4 shadow-xl">
+                  <h3 className="text-lg font-bold mb-4 text-blue-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
+                  {historyLoading ? (
+                    <div className="text-center p-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p>{t('loadingData')}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {historyCertificates.map(hcert => (
+                        <div key={hcert.id} className="border p-3 rounded-lg bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-semibold text-gray-800">{t('certificateNumber')}: {hcert.certificateNumber}</p>
+                              <p className="text-sm text-gray-600">{t('buyerName')}: {hcert.buyerName}</p>
+                              <p className="text-sm text-gray-600">{t('issueDate')}: {new Date(hcert.issueDate).toLocaleDateString(translations[t('lang')].locale)}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${hcert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                {t(hcert.status)}
+                              </span>
+                              <Button onClick={() => printCertificate(hcert)} size="sm" variant="ghost">
+                                <Printer className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-6">
+                    <Button variant="outline" onClick={() => setShowHistoryModal(false)}>{t('close')}</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>);
 };
 
 // UserProfileTab component definition removed from here, as it's now imported from its own file.
