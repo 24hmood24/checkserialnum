@@ -1,0 +1,42 @@
+{
+  "console": [
+    {
+      "type": "pageerror",
+      "text": "TypeError: Cannot read properties of undefined (reading 'checkDevice')"
+    }
+  ],
+  "requests": [
+    {
+      "url": "https://checkserialnum.com/",
+      "method": "GET",
+      "resourceType": "document"
+    },
+    {
+      "url": "https://checkserialnum.com/assets/index-Nrn47D03.js",
+      "method": "GET",
+      "resourceType": "script"
+    },
+    {
+      "url": "https://checkserialnum.com/assets/index-DCWDZDu3.css",
+      "method": "GET",
+      "resourceType": "stylesheet"
+    }
+  ],
+  "responses": [
+    {
+      "url": "https://checkserialnum.com/",
+      "status": 200,
+      "ct": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://checkserialnum.com/assets/index-DCWDZDu3.css",
+      "status": 200,
+      "ct": "text/css; charset=utf-8"
+    },
+    {
+      "url": "https://checkserialnum.com/assets/index-Nrn47D03.js",
+      "status": 200,
+      "ct": "application/javascript; charset=utf-8"
+    }
+  ]
+}
