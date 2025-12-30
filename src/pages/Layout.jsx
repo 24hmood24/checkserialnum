@@ -113,7 +113,7 @@ export default function Layout({ children }) {
           <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 sm:space-x-4 space-x-reverse">
-                <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68be8a0a3b67255d3609ea18/9f57651b3_LogoforVerificationWebsite.png" alt="Logo" className="w-20 h-20 sm:w-28 sm:h-28 object-contain" />
+                <img src="/logo.svg" alt="Logo" className="w-20 h-20 sm:w-28 sm:h-28 object-contain" />
                 <div className="relative z-10">
                   <h1 className="mb-1 text-base font-bold sm:text-3xl sm:mb-2 drop-shadow-lg">
                     {lang === 'ar' ? 'نظام فحص الأجهزة' : 'Device Check System'}

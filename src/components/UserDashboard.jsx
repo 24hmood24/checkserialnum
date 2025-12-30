@@ -400,7 +400,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                 <div class="certificate-wrapper">
                     <header>
                         <div class="logo-header">
-                            <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68be8a0a3b67255d3609ea18/ac445184f_LogoforVerificationWebsite.png" alt="Logo" class="logo-img">
+                          <img src="/logo.svg" alt="Logo" class="logo-img">
                         </div>
                         <div class="header">
                             <h1>${t('certificateOfPurchase')}</h1>
