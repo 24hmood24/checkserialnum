@@ -752,24 +752,24 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
     }
 
     if (buyerId === user.national_id) {
-        setNotificationState({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('cannotSellToYourself')}</p>, status: 'danger' });
-        return;
+      setNotificationState({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('cannotSellToYourself')}</p>, status: 'danger' });
+      return;
     }
     if (confirmedDeviceType !== deviceToSell.deviceType) {
-        setNotificationState({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('deviceTypeMustMatch')}</p>, status: 'danger' });
-        return;
+      setNotificationState({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('deviceTypeMustMatch')}</p>, status: 'danger' });
+      return;
     }
 
     setSellLoading(true);
     try {
       const { data: buyerCheck } = await findUserByNationalId({ nationalId: buyerId });
-      
+
       if (!buyerCheck || !buyerCheck.exists || !buyerCheck.data || !buyerCheck.data.user) {
         setNotificationState({ isOpen: true, title: t('sellDeviceError'), content: <p>{t('buyerAccountNotFound')}</p>, status: 'danger' });
         setSellLoading(false);
         return;
       }
-      
+
       // Correctly access the buyer's data from the nested object
       const buyerData = buyerCheck.data.user;
 
@@ -782,38 +782,38 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
         serialNumber: deviceToSell.serialNumber,
         deviceType: confirmedDeviceType,
         purchasePrice: purchasePrice,
-        
+
         // Sender's (current owner) details
-        sellerIdType: detectIdType(user.national_id), 
-        sellerNationalId: user.national_id, 
+        sellerIdType: detectIdType(user.national_id),
+        sellerNationalId: user.national_id,
         sellerPhone: user.phone_number,
 
         // Receiver's (new owner) details - FINAL FIX
-        buyerIdType: detectIdType(buyerId), 
+        buyerIdType: detectIdType(buyerId),
         buyerId: buyerId,
         buyerName: buyerData.full_name, // FINAL FIX: Access directly from buyerData
         buyerNameAtSale: buyerData.full_name, // FINAL FIX: Access directly from buyerData
-        
+
         issueDate: new Date().toISOString().split('T')[0],
         originalCertificateId: deviceToSell.id,
       };
-      
+
       // Use the new backend function
       const { data: newCertificate } = await createPurchaseCertificate(certificateData);
 
-      setNotificationState({ 
-          isOpen: true, 
-          status: 'success', 
-          title: t('deviceSoldSuccess'), 
-          content: (
-              <div>
-                  <p>{t('deviceSoldSuccess')}</p>
-                  <p className="font-bold text-blue-600 mt-2">{newCertificate.certificateNumber}</p>
-                  <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
-                    <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
-                  </Button>
-              </div>
-          )
+      setNotificationState({
+        isOpen: true,
+        status: 'success',
+        title: t('deviceSoldSuccess'),
+        content: (
+          <div>
+            <p>{t('deviceSoldSuccess')}</p>
+            <p className="font-bold text-blue-600 mt-2">{newCertificate.certificateNumber}</p>
+            <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
+              <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
+            </Button>
+          </div>
+        )
       });
       setShowSellModal(false);
       setDeviceToSell(null); // Reset device to sell
@@ -881,7 +881,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
       const generatedReportId = newReport.reportId; // Get the generated ID from the response
 
       // Update certificate status to 'stolen' as per changes outline
-      const { data: updatedCert } = await PurchaseCertificate.update(device.id, { status: 'stolen' }); 
+      const { data: updatedCert } = await PurchaseCertificate.update(device.id, { status: 'stolen' });
 
       handleDataUpdate(); // Trigger data refresh
 
@@ -1260,8 +1260,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
               <p className="text-sm text-gray-600">{t('theftDate')}: {formatDate(report.theftDate)}</p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                report.status === 'active' ? 'bg-red-100 text-red-800' :
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${report.status === 'active' ? 'bg-red-100 text-red-800' :
                   report.status === 'pending_closure' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-green-100 text-green-800'}`
               }>
