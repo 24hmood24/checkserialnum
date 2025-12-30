@@ -192,6 +192,14 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
   const handleUserLoginSuccess = (type, userData) => {
     setUserType(type);
     setLoggedInUser(userData);
+    // Persist session so Layout and other pages can read it
+    try {
+      localStorage.setItem('loggedInUser', JSON.stringify(userData));
+      localStorage.setItem('userType', type);
+      window.dispatchEvent(new CustomEvent('app:login', { detail: { user: userData, userType: type } }));
+    } catch (e) {
+      console.warn('Failed to persist login', e);
+    }
     if (type === 'admin') {
       setActiveTab('admin');
     } else {
