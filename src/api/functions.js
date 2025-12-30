@@ -5,16 +5,16 @@ import { base44 } from './base44Client';
 // initialized), these wrappers resolve to a predictable object so callers
 // using `const { data } = await fn()` don't throw at runtime.
 function safeFn(fnName) {
-	return async (...args) => {
-		try {
-			if (base44 && base44.functions && typeof base44.functions[fnName] === 'function') {
-				return await base44.functions[fnName](...args);
-			}
-			return { data: null, error: 'unauthenticated', status: 401 };
-		} catch (err) {
-			return { data: null, error: err && err.message ? err.message : String(err) };
-		}
-	};
+    return async (...args) => {
+        try {
+            if (base44 && base44.functions && typeof base44.functions[fnName] === 'function') {
+                return await base44.functions[fnName](...args);
+            }
+            return { data: null, error: 'unauthenticated', status: 401 };
+        } catch (err) {
+            return { data: null, error: err && err.message ? err.message : String(err) };
+        }
+    };
 }
 
 export const checkDevice = safeFn('checkDevice');
