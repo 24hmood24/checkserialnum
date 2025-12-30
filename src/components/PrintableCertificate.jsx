@@ -268,7 +268,7 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
                     </div>
 
                     <div className="logo-header">
-                        <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68be8a0a3b67255d3609ea18/ac445184f_LogoforVerificationWebsite.png" alt="Logo" className="logo-img" />
+                        <img src="/logo.svg" alt="Logo" className="logo-img" />
                     </div>
 
                     <div className="main-certificate">
