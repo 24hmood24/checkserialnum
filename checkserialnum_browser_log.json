@@ -1,6 +1,10 @@
 {
   "console": [
     {
+      "type": "error",
+      "text": "TypeError: Cannot read properties of undefined (reading 'checkDevice')\n    at T (https://checkserialnum.com/assets/index-CvOs6NOn.js:528:27312)\n    at bp (https://checkserialnum.com/assets/index-CvOs6NOn.js:528:27340)\n    at rd (https://checkserialnum.com/assets/index-CvOs6NOn.js:38:17330)\n    at Py (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:44549)\n    at Ny (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:40165)\n    at cT (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:40093)\n    at hl (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:39946)\n    at jd (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:36255)\n    at wy (https://checkserialnum.com/assets/index-CvOs6NOn.js:40:35203)\n    at I (https://checkserialnum.com/assets/index-CvOs6NOn.js:25:1593)"
+    },
+    {
       "type": "pageerror",
       "text": "TypeError: Cannot read properties of undefined (reading 'checkDevice')"
     }
@@ -12,7 +16,7 @@
       "resourceType": "document"
     },
     {
-      "url": "https://checkserialnum.com/assets/index-Nrn47D03.js",
+      "url": "https://checkserialnum.com/assets/index-CvOs6NOn.js",
       "method": "GET",
       "resourceType": "script"
     },
@@ -20,6 +24,11 @@
       "url": "https://checkserialnum.com/assets/index-DCWDZDu3.css",
       "method": "GET",
       "resourceType": "stylesheet"
+    },
+    {
+      "url": "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68be8a0a3b67255d3609ea18/9f57651b3_LogoforVerificationWebsite.png",
+      "method": "GET",
+      "resourceType": "image"
     }
   ],
   "responses": [
@@ -34,9 +43,14 @@
       "ct": "text/css; charset=utf-8"
     },
     {
-      "url": "https://checkserialnum.com/assets/index-Nrn47D03.js",
+      "url": "https://checkserialnum.com/assets/index-CvOs6NOn.js",
       "status": 200,
       "ct": "application/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68be8a0a3b67255d3609ea18/9f57651b3_LogoforVerificationWebsite.png",
+      "status": 200,
+      "ct": "application/octet-stream"
     }
   ]
 }
