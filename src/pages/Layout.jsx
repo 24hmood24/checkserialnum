@@ -129,16 +129,16 @@ export default function Layout({ children }) {
                     {lang === 'ar' ? 'خط المساعدة' : 'Help Line'}
                   </p>
                   <p className="text-base sm:text-2xl font-bold text-white mb-2 sm:mb-3">911</p>
-                  
+
                   {/* Show login button only when user is not logged in */}
                   {!loggedInUser &&
-                  <Button onClick={handleUserLoginClick} className="bg-white bg-opacity-30 hover:bg-opacity-40 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 w-full">
-                      <Settings className="ml-1 sm:ml-2 h-3 sm:h-4 w-3 sm:w-4" /> 
+                    <Button onClick={handleUserLoginClick} className="bg-white bg-opacity-30 hover:bg-opacity-40 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 w-full">
+                      <Settings className="ml-1 sm:ml-2 h-3 sm:h-4 w-3 sm:w-4" />
                       {lang === 'ar' ? 'تسجيل دخول' : 'Login'}
                     </Button>
                   }
                 </div>
-                
+
                 {/* Language toggle button */}
                 <Button
                   onClick={handleLanguageChange}
@@ -160,18 +160,18 @@ export default function Layout({ children }) {
 
         <footer className="bg-gray-800/50 backdrop-blur-sm text-white py-4 sm:py-6 mt-8 sm:mt-12 border-t border-white/20">
           <div className="container mx-auto px-2 sm:px-4 text-center">
-              <p className="mb-1 sm:mb-2 text-sm sm:text-base">
-                {lang === 'ar' ?
-              `الأمن العام - المملكة العربية السعودية ${new Date().getFullYear()}` :
-              `Public Security - Kingdom of Saudi Arabia ${new Date().getFullYear()}`
+            <p className="mb-1 sm:mb-2 text-sm sm:text-base">
+              {lang === 'ar' ?
+                `الأمن العام - المملكة العربية السعودية ${new Date().getFullYear()}` :
+                `Public Security - Kingdom of Saudi Arabia ${new Date().getFullYear()}`
               }
-              </p>
-              <p className="text-gray-300 text-xs sm:text-sm">
-                {lang === 'ar' ?
-              'جميع الحقوق محفوظة | للاستفسارات: 911' :
-              'All Rights Reserved | For inquiries: 911'
+            </p>
+            <p className="text-gray-300 text-xs sm:text-sm">
+              {lang === 'ar' ?
+                'جميع الحقوق محفوظة | للاستفسارات: 911' :
+                'All Rights Reserved | For inquiries: 911'
               }
-              </p>
+            </p>
           </div>
         </footer>
       </div>
