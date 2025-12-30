@@ -26,10 +26,10 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
             onPrint();
             return;
         }
-        
+
         const printContent = document.getElementById('certificate-print-area').innerHTML;
         const printWindow = window.open('', '_blank');
-        
+
         printWindow.document.write(`
             <!DOCTYPE html>
             <html dir="rtl" lang="ar">
@@ -264,7 +264,7 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
                 <div className="certificate-page">
                     <div className="cert-header">
                         <span>شهادة فحص الجهاز - {certificate.certificateNumber}</span>
-                        <span>{new Date().toLocaleDateString('ar-SA')} {new Date().toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'})}</span>
+                        <span>{new Date().toLocaleDateString('ar-SA')} {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
 
                     <div className="logo-header">
@@ -329,17 +329,17 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
                 <div className="certificate-page page-2">
                     <div className="cert-header">
                         <span>شهادة فحص الجهاز - {certificate.certificateNumber}</span>
-                        <span>{new Date().toLocaleDateString('ar-SA')} {new Date().toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'})}</span>
+                        <span>{new Date().toLocaleDateString('ar-SA')} {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
 
                     <div className="qr-section">
                         <div className="qr-box">
                             <div>
-                                <div style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '5px'}}>QR Code</div>
+                                <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>QR Code</div>
                                 <div>للتحقق من صحة الشهادة</div>
                             </div>
                         </div>
-                        <p style={{fontSize: '16px', fontWeight: 'bold', color: '#2196f3'}}>امسح الكود للتحقق من صحة الشهادة</p>
+                        <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#2196f3' }}>امسح الكود للتحقق من صحة الشهادة</p>
                     </div>
 
                     <div className="features-grid">
@@ -366,7 +366,7 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
                     </div>
 
                     <div className="footer-box">
-                        <div style={{marginBottom: '10px', fontWeight: 'bold'}}>
+                        <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
                             للتحقق من صحة الشهادة، يرجى زيارة موقع الأمن العام أو الاتصال على الرقم 999
                         </div>
                         <div>
