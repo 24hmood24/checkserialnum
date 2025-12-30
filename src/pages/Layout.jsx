@@ -27,6 +27,19 @@ export default function Layout({ children }) {
     setLang(storedLang);
   }, []);
 
+  // Listen for login events from other components so Layout updates without reload
+  useEffect(() => {
+    const onLogin = (e) => {
+      const d = e && e.detail;
+      if (d && d.user) {
+        setLoggedInUser(d.user);
+        setUserType(d.userType || null);
+      }
+    };
+    window.addEventListener('app:login', onLogin);
+    return () => window.removeEventListener('app:login', onLogin);
+  }, []);
+
   const handleLanguageChange = () => {
     const newLang = lang === 'ar' ? 'en' : 'ar';
     setLang(newLang);
@@ -140,15 +153,22 @@ export default function Layout({ children }) {
                 </div>
 
                 {/* Language toggle button */}
-                <Button
-                  onClick={handleLanguageChange}
-                  variant="outline"
-                  size="sm"
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 flex items-center gap-1 sm:gap-2">
+                <div className="flex gap-2">
+                  {loggedInUser && userType === 'admin' && (
+                    <a href="/admin-seed" className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300">
+                      Admin
+                    </a>
+                  )}
+                  <Button
+                    onClick={handleLanguageChange}
+                    variant="outline"
+                    size="sm"
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 flex items-center gap-1 sm:gap-2">
 
-                  <Globe className="w-3 sm:w-4 h-3 sm:h-4" />
-                  <span>{lang === 'ar' ? 'English' : 'العربية'}</span>
-                </Button>
+                    <Globe className="w-3 sm:w-4 h-3 sm:h-4" />
+                    <span>{lang === 'ar' ? 'English' : 'العربية'}</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

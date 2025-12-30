@@ -48,7 +48,7 @@ export async function loginUser({ nationalId, password }) {
         // Very small mock check: if password field exists and matches
         if (user.password && password && String(user.password) === String(password)) {
             await User.setCurrent(user);
-            return { data: { user } };
+            return { data: user };
         }
         return { data: null, error: 'invalid_credentials', status: 401 };
     } catch (err) {
