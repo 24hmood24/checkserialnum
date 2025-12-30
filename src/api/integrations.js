@@ -1,23 +1,16 @@
 import { base44 } from './base44Client';
 
+// Minimal integration stubs so the rest of the app can import these names.
+// These functions can be expanded later to call real external services.
+export const Core = {};
 
-
-
-export const Core = base44.integrations.Core;
-
-export const InvokeLLM = base44.integrations.Core.InvokeLLM;
-
-export const SendEmail = base44.integrations.Core.SendEmail;
-
-export const UploadFile = base44.integrations.Core.UploadFile;
-
-export const GenerateImage = base44.integrations.Core.GenerateImage;
-
-export const ExtractDataFromUploadedFile = base44.integrations.Core.ExtractDataFromUploadedFile;
-
-export const CreateFileSignedUrl = base44.integrations.Core.CreateFileSignedUrl;
-
-export const UploadPrivateFile = base44.integrations.Core.UploadPrivateFile;
+export const InvokeLLM = async (..._args) => ({ data: null, error: 'not_available' });
+export const SendEmail = async (..._args) => ({ data: null, error: 'not_available' });
+export const UploadFile = async (..._args) => ({ data: null, error: 'not_available' });
+export const GenerateImage = async (..._args) => ({ data: null, error: 'not_available' });
+export const ExtractDataFromUploadedFile = async (..._args) => ({ data: null, error: 'not_available' });
+export const CreateFileSignedUrl = async (..._args) => ({ data: null, error: 'not_available' });
+export const UploadPrivateFile = async (..._args) => ({ data: null, error: 'not_available' });
 
 
 
