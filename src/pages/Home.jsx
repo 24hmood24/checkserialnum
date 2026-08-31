@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { AppContext } from './Layout.jsx';
 import { StolenDevice } from '@/api/entities';
 import { PurchaseCertificate } from '@/api/entities';
 import { User } from '@/api/entities';
@@ -133,7 +134,8 @@ const CopyButton = ({ text, t }) => {
 };
 
 // The page component receives lang from Layout
-export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser, setLoggedInUser, userType, setUserType, lang }) {
+export default function HomePage() {
+  const { showUserLogin, setShowUserLogin, loggedInUser, setLoggedInUser, userType, setUserType, lang } = useContext(AppContext);
   const [activeTab, setActiveTab] = useState('check');
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ isOpen: false, title: '', content: null, status: 'default' });

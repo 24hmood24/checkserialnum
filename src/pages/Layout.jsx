@@ -1,12 +1,24 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext } from 'react';
 import { User, Globe, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import Home from '@/pages/Home';
 import UserLoginModal from '@/components/UserLoginModal';
+
+// Shared app state (auth + language) exposed to page components that are
+// rendered inside <Routes> and can't receive it via cloneElement.
+export const AppContext = createContext({
+  showUserLogin: false,
+  setShowUserLogin: () => {},
+  loggedInUser: null,
+  setLoggedInUser: () => {},
+  userType: null,
+  setUserType: () => {},
+  lang: 'ar',
+});
 
 export default function Layout({ children }) {
   const [showUserLogin, setShowUserLogin] = useState(false);
@@ -57,7 +69,7 @@ export default function Layout({ children }) {
     localStorage.removeItem('userType');
   };
 
-  const pageWithProps = React.cloneElement(children, {
+  const contextValue = {
     showUserLogin,
     setShowUserLogin,
     loggedInUser,
@@ -65,10 +77,10 @@ export default function Layout({ children }) {
     userType,
     setUserType,
     lang // Pass language to child components
-  });
+  };
 
   return (
-    <>
+    <AppContext.Provider value={contextValue}>
       <style>{`
         .body-bg {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -175,7 +187,7 @@ export default function Layout({ children }) {
         </header>
 
         <main className="flex-grow">
-          {pageWithProps}
+          {children}
         </main>
 
         <footer className="bg-gray-800/50 backdrop-blur-sm text-white py-4 sm:py-6 mt-8 sm:mt-12 border-t border-white/20">
@@ -195,7 +207,7 @@ export default function Layout({ children }) {
           </div>
         </footer>
       </div>
-    </>);
+    </AppContext.Provider>);
 
 }
 

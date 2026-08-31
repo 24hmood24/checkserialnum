@@ -1,6 +1,7 @@
 import Layout from "./Layout.jsx";
 
 import Home from "./Home";
+import AdminSeed from "./AdminSeed";
 
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -36,7 +37,7 @@ function PagesContent() {
 
 
                 <Route path="/Home" element={<Home />} />
-                <Route path="/admin-seed" element={React.createElement(require('./AdminSeed').default)} />
+                <Route path="/admin-seed" element={<AdminSeed />} />
 
             </Routes>
         </Layout>

@@ -16,6 +16,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.jsx', '.ts', '.tsx', '.json']
   },
   optimizeDeps: {
+    entries: ['index.html'],
     esbuildOptions: {
       loader: {
         '.js': 'jsx',
