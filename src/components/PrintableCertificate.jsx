@@ -251,7 +251,7 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
             {/* Print Button */}
             {showPrintButton && (
                 <div className="no-print mb-4 text-center">
-                    <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button onClick={handlePrint} className="bg-teal-600 hover:bg-teal-700 text-white">
                         <Printer className="w-4 h-4 ml-2" />
                         طباعة الشهادة
                     </Button>

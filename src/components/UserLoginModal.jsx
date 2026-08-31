@@ -355,7 +355,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('register')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('register')}
                         </button>
@@ -486,7 +486,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('back')}
                         </button>
@@ -546,7 +546,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('back')}
                         </button>
@@ -623,7 +623,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('backToLogin')}
                         </button>
@@ -639,7 +639,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
             <DialogContent className="sm:max-w-md" dir="rtl">
                 <DialogHeader>
                     <DialogTitle className="text-center text-xl font-bold flex items-center justify-center">
-                        <UserCog className="w-6 h-6 ml-2 text-blue-600" />
+                        <UserCog className="w-6 h-6 ml-2 text-teal-600" />
                         {mode === 'login' ? t('userLoginTitle') : 
                          mode === 'register' ? t('register') : 
                          t('resetPassword')}

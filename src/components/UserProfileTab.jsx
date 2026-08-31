@@ -198,7 +198,7 @@ export default function UserProfileTab({ user, t, onSave, onCancel }) {
         {error && <p className="text-red-600 text-sm mt-4">{error}</p>}
 
         <div className="flex gap-4 pt-6">
-          <Button type="submit" disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700">
+          <Button type="submit" disabled={loading} className="flex-1 bg-teal-600 hover:bg-teal-700">
             {loading ? t('saving') : t('saveChanges')}
           </Button>
           <Button type="button" onClick={onCancel} variant="outline" className="flex-1">

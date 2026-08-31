@@ -83,11 +83,11 @@ export default function Layout({ children }) {
     <AppContext.Provider value={contextValue}>
       <style>{`
         .body-bg {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #134e4a 0%, #0f172a 100%);
           min-height: 100vh;
         }
         .gradient-bg-header {
-          background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+          background: linear-gradient(135deg, #0f172a 0%, #0f766e 55%, #2dd4bf 100%);
           position: relative;
           overflow: hidden;
         }

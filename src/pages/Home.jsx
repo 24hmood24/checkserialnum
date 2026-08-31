@@ -121,7 +121,7 @@ const CopyButton = ({ text, t }) => {
     <Button
       onClick={handleCopy}
       size="sm"
-      className={`mt-2 ${copied ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+      className={`mt-2 ${copied ? 'bg-green-600 hover:bg-green-700' : 'bg-teal-600 hover:bg-teal-700'}`}
     >
       {copied ? <Check className="w-4 h-4 ml-2" /> : <Copy className="w-4 h-4 ml-2" />}
       {copied ? t('copied') : t('copyReportId')}
@@ -211,6 +211,17 @@ export default function HomePage() {
     setLoggedInUser(null);
     setUserType(null);
     setActiveTab('check');
+    // Clear every place the session is persisted — this only reset
+    // Layout's in-memory state before, so localStorage still had the old
+    // user/session token in it and a page refresh silently logged the
+    // same account back in.
+    try {
+      localStorage.removeItem('loggedInUser');
+      localStorage.removeItem('userType');
+    } catch {
+      // localStorage unavailable — nothing more we can do here
+    }
+    User.clear();
   };
 
   // NEW: Handle quick purchase navigation
@@ -273,15 +284,15 @@ export default function HomePage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-5 px-6 text-center font-bold transition-all duration-300 relative overflow-hidden ${activeTab === tab.id ?
-                'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-                'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 hover:text-blue-600'}`
+                'text-white bg-gradient-to-r from-teal-600 to-teal-700' :
+                'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-teal-50 hover:to-teal-100 hover:text-teal-600'}`
               }>
 
               <div className="flex items-center justify-center space-x-2 space-x-reverse">
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
               </div>
-              {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
+              {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-teal-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
             </button>
           )}
         </div>
@@ -304,8 +315,8 @@ export default function HomePage() {
                         setShowMobileMenu(false); // Close menu on tab click
                       }}
                       className={`w-full p-4 rounded-lg transition-all duration-300 font-bold text-right ${activeTab === tab.id ?
-                        'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-                        'text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600'}`
+                        'text-white bg-gradient-to-r from-teal-600 to-teal-700' :
+                        'text-gray-600 bg-gray-50 hover:bg-teal-50 hover:text-teal-600'}`
                       }>
 
                       <div className={`flex items-center justify-start space-x-3 space-x-reverse`}>
@@ -724,8 +735,8 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
         <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
           <CardHeader className="p-0 mb-6">
-            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
+            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-teal-800 to-teal-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
+              <div className="bg-gradient-to-r from-teal-500 to-teal-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
                 <Search className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
               </div>
               {t('checkSerialTitle')}
@@ -740,9 +751,9 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                   name="serialNumber"
                   placeholder={t('serialNumberPlaceholder')}
                   required
-                  dir="ltr" className="bg-slate-200 text-left p-3 text-base flex ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm w-full sm:p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition-all duration-300 backdrop-blur-sm hover:border-blue-300 h-12 sm:h-14 sm:text-lg" />
+                  dir="ltr" className="bg-slate-200 text-left p-3 text-base flex ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm w-full sm:p-4 border-2 border-teal-200 rounded-xl focus:ring-4 focus:ring-teal-300 focus:border-teal-500 transition-all duration-300 backdrop-blur-sm hover:border-teal-300 h-12 sm:h-14 sm:text-lg" />
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-blue-700 hover:to-blue-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
+              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-teal-700 hover:to-teal-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
                 {loading ? t('checking') : `🔍 ${t('checkNowButton')}`}
               </Button>
             </form>
@@ -762,7 +773,7 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
             <AnimatePresence mode="wait">
               {loading ? (
                 <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
                   <p className="text-gray-500 text-base sm:text-lg font-medium mt-4">{t('checkingDevice')}</p>
                 </motion.div>
               ) : !checkResult ?
@@ -784,9 +795,9 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                       <p className="text-green-700 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
                       {checkResult.certificate &&
                         <div className="mt-4">
-                          <h4 className="text-blue-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
-                            <p className="font-semibold text-blue-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
+                          <h4 className="text-teal-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
+                          <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 sm:p-4">
+                            <p className="font-semibold text-teal-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
                           </div>
                         </div>
                       }
@@ -997,7 +1008,7 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
         isOpen: true, status: 'success', title: t('reportSuccessTitle'),
         content: <div>
           <p>{t('reportSuccessMessage')}</p>
-          <p className="font-bold text-blue-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
+          <p className="font-bold text-teal-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
           <CopyButton text={newReport.reportId} t={t} />
         </div>
       });
@@ -1347,7 +1358,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
         content: (
           <div>
             <p>{t('certificateIssuedMessage')}</p>
-            <p className="font-bold text-blue-600 mt-2">{t('certificateNumber')}: {newCertificate.certificateNumber}</p>
+            <p className="font-bold text-teal-600 mt-2">{t('certificateNumber')}: {newCertificate.certificateNumber}</p>
             <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
               <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
             </Button>
@@ -1387,8 +1398,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
           <ShoppingCart className="w-6 h-6 ml-2 text-green-600" />
           {t('buyDeviceTitle')}
         </CardTitle>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 text-sm">
+        <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+          <p className="text-teal-800 text-sm">
             <strong>{t('forBuyer')}:</strong> {t('forBuyerText')}
           </p>
         </div>
@@ -1731,7 +1742,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
       <CardHeader className="p-0 sm:p-2">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
           <CardTitle className="text-xl font-bold text-gray-800 flex items-center">
-            <UserCog className="w-6 h-6 ml-2 text-blue-600" />
+            <UserCog className="w-6 h-6 ml-2 text-teal-600" />
             {t('manageReports')}
           </CardTitle>
           <Button
@@ -1746,7 +1757,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
         <div className="flex border-b">
           <button
             onClick={() => handleAdminTabChange('reports')}
-            className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
           >
             {t('theftReports')}
             {newReportsCount > 0 && (
@@ -1757,7 +1768,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
           </button>
           <button
             onClick={() => handleAdminTabChange('certs')}
-            className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
           >
             {t('certificates')}
           </button>
@@ -1839,7 +1850,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                     {t('activeFilters')}:
                   </span>
                   {searchTerm && (
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                    <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs">
                       {t('searchText')}: {searchTerm}
                     </span>
                   )}
@@ -1870,7 +1881,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
 
             {adminLoading ? (
               <div className="text-center p-8 text-gray-500">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mx-auto"></div>
                 <p>{t('loadingData')}</p>
               </div>
             ) : (
@@ -1894,7 +1905,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                       {filteredReports.map((device) =>
                         <React.Fragment key={device.id}>
                           <tr className={`border-b hover:bg-gray-50 ${device.status === 'pending_closure' ? 'bg-yellow-50' : ''}`}>
-                            <td className="p-2 font-bold text-blue-600">{device.reportId}</td>
+                            <td className="p-2 font-bold text-teal-600">{device.reportId}</td>
                             <td className="p-2 font-mono" dir="ltr" style={{ textAlign: 'left' }}>{device.serialNumber}</td>
                             <td className="p-2">{t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</td>
                             <td className="p-2">{new Date(device.created_date).toLocaleDateString(translations[t('lang')].locale)}</td>
@@ -1919,7 +1930,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                               <td colSpan="8" className="p-0">
                                 {/* Edit Form - Remains the same */}
                                 <div className="bg-white p-6 m-4 rounded-lg shadow-md border space-y-4">
-                                  <h3 className="text-lg font-bold mb-4 text-blue-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
+                                  <h3 className="text-lg font-bold mb-4 text-teal-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
 
                                   {device.status === 'pending_closure' && (
                                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
@@ -2024,7 +2035,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                                     </div>
 
                                     <div className="flex gap-2">
-                                      <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                      <Button onClick={handleUpdateReport} className="flex-1 bg-teal-600 hover:bg-teal-700">{t('save')}</Button>
                                       <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
                                     </div>
                                   </div>
@@ -2045,7 +2056,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                       <div className={`p-4 border rounded-lg shadow-sm ${device.status === 'pending_closure' ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-bold text-blue-600">{device.reportId}</p>
+                            <p className="font-bold text-teal-600">{device.reportId}</p>
                             <p className="font-mono text-sm text-gray-700" dir="ltr">{device.serialNumber}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${device.status === 'active' ? 'bg-red-100 text-red-800' :
@@ -2070,7 +2081,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                         <div className="bg-gray-50 p-4 -mt-2 rounded-b-lg border-x border-b">
                           {/* Mobile Edit Form */}
                           <div className="space-y-4">
-                            <h3 className="text-lg font-bold mb-2 text-blue-700">{t('editReport')}</h3>
+                            <h3 className="text-lg font-bold mb-2 text-teal-700">{t('editReport')}</h3>
 
                             {device.status === 'pending_closure' && (
                               <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4 text-sm">
@@ -2139,7 +2150,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                               </div>
 
                               <div className="flex gap-2">
-                                <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                <Button onClick={handleUpdateReport} className="flex-1 bg-teal-600 hover:bg-teal-700">{t('save')}</Button>
                                 <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
                               </div>
                             </div>
@@ -2174,7 +2185,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                 <div key={cert.id} className="border rounded-lg p-3 sm:p-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:shadow-md hover:bg-white">
                   <div className="flex-grow w-full">
                     <div className="flex justify-between items-center gap-2">
-                      <p className="font-bold text-blue-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-blue-900">{cert.certificateNumber}</span></p>
+                      <p className="font-bold text-teal-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-teal-900">{cert.certificateNumber}</span></p>
                       <p className="text-xs sm:text-sm text-gray-600 mt-1">{t('serialNumberLabel')}: <span className="font-mono">{cert.serialNumber}</span></p>
                       <p className="text-xs sm:text-sm text-gray-600">{t('buyerName')}: {cert.buyerName}</p>
                     </div>
@@ -2188,7 +2199,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                     <Button onClick={() => handleShowHistory(cert.serialNumber)} variant="outline" size="sm" className="flex-1 sm:flex-grow-0">
                       {t('viewHistory')}
                     </Button>
-                    <Button onClick={() => printCertificate(cert)} className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-grow-0" size="sm">
+                    <Button onClick={() => printCertificate(cert)} className="bg-teal-600 hover:bg-teal-700 flex-1 sm:flex-grow-0" size="sm">
                       <Printer className="w-4 h-4 ml-2" />
                       {t('printCertificate')}
                     </Button>
@@ -2203,10 +2214,10 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
             {showHistoryModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
                 <div className="bg-white p-6 rounded-lg max-w-2xl w-full mx-4 shadow-xl">
-                  <h3 className="text-lg font-bold mb-4 text-blue-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
+                  <h3 className="text-lg font-bold mb-4 text-teal-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
                   {historyLoading ? (
                     <div className="text-center p-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-2"></div>
                       <p>{t('loadingData')}</p>
                     </div>
                   ) : (

@@ -67,20 +67,20 @@ const validateId = (id) => {
 const NotificationModal = ({ isOpen, onClose, title, status, children }) => {
   if (!isOpen) return null;
 
-  const bgColor = status === 'success' ? 'bg-green-100 border-green-200 text-green-800' : status === 'danger' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-blue-100 border-blue-200 text-blue-800';
+  const bgColor = status === 'success' ? 'bg-green-100 border-green-200 text-green-800' : status === 'danger' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-teal-100 border-teal-200 text-teal-800';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className={`rounded-lg shadow-xl p-6 max-w-sm w-full ${bgColor}`}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">{title}</h2>
-          <Button variant="ghost" size="sm" onClick={onClose} className={`text-xl font-bold ${status === 'success' ? 'text-green-800' : status === 'danger' ? 'text-red-800' : 'text-blue-800'}`}>&times;</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} className={`text-xl font-bold ${status === 'success' ? 'text-green-800' : status === 'danger' ? 'text-red-800' : 'text-teal-800'}`}>&times;</Button>
         </div>
         <div>
           {children}
         </div>
         <div className="mt-4 flex justify-end">
-          <Button onClick={onClose} className={`${status === 'success' ? 'bg-green-600 hover:bg-green-700' : status === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+          <Button onClick={onClose} className={`${status === 'success' ? 'bg-green-600 hover:bg-green-700' : status === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-600 hover:bg-teal-700'}`}>
             OK
           </Button>
         </div>
@@ -797,7 +797,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
         content: (
           <div>
             <p>{t('deviceSoldSuccess')}</p>
-            <p className="font-bold text-blue-600 mt-2">{newCertificate.certificateNumber}</p>
+            <p className="font-bold text-teal-600 mt-2">{newCertificate.certificateNumber}</p>
             <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
               <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
             </Button>
@@ -886,7 +886,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
         content:
           <div>
             <p>{t('theftReportSuccess')}</p>
-            <p className="font-bold text-blue-600 mt-2 text-lg">{generatedReportId}</p> {/* Display the generated ID */}
+            <p className="font-bold text-teal-600 mt-2 text-lg">{generatedReportId}</p> {/* Display the generated ID */}
             <div className="mt-3">
               <Button
                 onClick={() => {
@@ -1149,7 +1149,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
               <div className="flex-shrink-0">
                 {/* Buttons for larger screens */}
                 <div className="hidden md:flex gap-2">
-                  <Button size="sm" onClick={() => printCertificate(device)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Button size="sm" onClick={() => printCertificate(device)} className="bg-teal-600 hover:bg-teal-700 text-white">
                     <Printer className="w-4 h-4 ml-1" /> {t('printCertificate')}
                   </Button>
                   <Button size="sm" onClick={() => handleToggleSellForm(device)}> {/* Changed to call handleToggleSellForm with device object */}
@@ -1256,7 +1256,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
           <div key={report.id} className="border rounded-lg p-4 bg-gray-50 flex flex-wrap justify-between items-start gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-teal-600" />
                 <span className="font-bold">{t('reportId')}: {report.reportId}</span>
               </div>
               <p className="text-sm text-gray-600">{t('serialNumberLabel')}: <span className="font-mono">{report.serialNumber}</span></p>
@@ -1320,7 +1320,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
       <CardHeader>
         <CardTitle className="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <UserCog className="w-6 h-6 text-blue-600" />
+            <UserCog className="w-6 h-6 text-teal-600" />
             {t('myAccount')} - {user.full_name}
           </div>
           <Button onClick={onLogout} variant="outline" size="sm" className="text-red-600 border-red-600 hover:bg-red-50">
@@ -1329,9 +1329,9 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
           </Button>
         </CardTitle>
         <div className="flex border-b">
-          <button onClick={() => setActiveTab('devices')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'devices' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('myDevices')}</button>
-          <button onClick={() => setActiveTab('reports')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'reports' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('myReports')}</button>
-          <button onClick={() => setActiveTab('profile')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'profile' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('myProfile')}</button>
+          <button onClick={() => setActiveTab('devices')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'devices' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}>{t('myDevices')}</button>
+          <button onClick={() => setActiveTab('reports')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'reports' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}>{t('myReports')}</button>
+          <button onClick={() => setActiveTab('profile')} className={`flex-1 py-2 px-4 font-semibold ${activeTab === 'profile' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}>{t('myProfile')}</button>
         </div>
       </CardHeader>
       <CardContent>
@@ -1351,9 +1351,9 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
             </div>
 
             {showAddDeviceForm &&
-              <Card className="my-4 p-4 bg-gray-50 border-blue-200">
+              <Card className="my-4 p-4 bg-gray-50 border-teal-200">
                 <form onSubmit={handleAddDeviceSubmit} className="space-y-3">
-                  <h4 className="font-semibold text-blue-800">{t('addNewDeviceTitle')}</h4>
+                  <h4 className="font-semibold text-teal-800">{t('addNewDeviceTitle')}</h4>
                   <div>
                     <label className="text-sm font-medium text-gray-700">{t('serialNumber')}</label>
                     <Input
@@ -1385,7 +1385,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
                     </Select>
                   </div>
                   <div className="flex gap-2">
-                    <Button type="submit" size="sm" disabled={addDeviceLoading} className="bg-blue-600 hover:bg-blue-700">
+                    <Button type="submit" size="sm" disabled={addDeviceLoading} className="bg-teal-600 hover:bg-teal-700">
                       {addDeviceLoading ? t('processing') : t('add')}
                     </Button>
                     <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddDeviceForm(false)}>{t('cancel')}</Button>
@@ -1396,7 +1396,7 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
 
             {loading ? // Use loading state here for devices tab
               <div className="text-center p-8 text-gray-500">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mx-auto mb-4"></div>
                 <p>{t('loadingData')}</p>
               </div> :
               userDevices.length === 0 ? // If not loading and no devices
