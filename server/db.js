@@ -1,29 +1,36 @@
-// Real, persistent storage for the app: SQLite via Node's built-in
-// node:sqlite module (no native module to compile, no external service).
-// Each table stores its rows as a JSON blob (same shape the old
-// localStorage mock used) plus an id/created_at for indexing — this keeps
-// every field the frontend already sends/reads working without needing a
-// rigid column-per-field schema.
-import { DatabaseSync } from 'node:sqlite';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Real, persistent, shared storage for the app: MongoDB Atlas. Unlike the
+// SQLite file this replaced, data here lives outside the app's own
+// container/disk — it survives redeploys and free-tier instance restarts,
+// and is naturally shared across every server instance.
+import { MongoClient } from 'mongodb';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
+// Load a local .env file if one exists (e.g. for `MONGODB_URI` in local
+// dev) — a no-op when there isn't one, as in production where the host
+// (Render, etc.) sets real environment variables directly.
+try {
+    process.loadEnvFile();
+} catch {
+    // no .env file — fine, env vars are expected to be set some other way
+}
+
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+    throw new Error(
+        'MONGODB_URI environment variable is required. See the "Database (MongoDB)" ' +
+        'section in README.md for how to get a connection string from MongoDB Atlas.'
+    );
+}
 
 export const TABLES = ['app_users', 'stolen_devices', 'purchase_certificates'];
 
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL;');
+const client = new MongoClient(uri);
+await client.connect();
 
-for (const table of TABLES) {
-    db.exec(`
-    CREATE TABLE IF NOT EXISTS ${table} (
-      id TEXT PRIMARY KEY,
-      data TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-}
+const dbName = process.env.MONGODB_DB_NAME || 'checkserialnum';
+const db = client.db(dbName);
+
+// Enforce national_id uniqueness the same way application code used to —
+// via a real unique index now, checked by the database itself.
+await db.collection('app_users').createIndex({ national_id: 1 }, { unique: true, sparse: true });
 
 export default db;

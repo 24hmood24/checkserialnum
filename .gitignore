@@ -24,7 +24,3 @@ dist-ssr
 *.sw?
 
 .env
-
-# SQLite database (real user data — never commit it)
-server/data.sqlite
-server/data.sqlite-*

@@ -4,14 +4,19 @@ import { hashPassword, verifyPassword } from './crypto.js';
 const SENSITIVE_FIELDS = ['password', 'password_hash', 'password_salt'];
 
 function sanitize(table, row) {
-    if (table !== 'app_users' || !row) return row;
+    if (!row) return row;
     const clean = { ...row };
+    delete clean._id; // internal Mongo id — the app only ever uses `id` (same value)
+    if (table !== 'app_users') return clean;
     for (const f of SENSITIVE_FIELDS) delete clean[f];
     return clean;
 }
 
-// Same "convenience" matching the old localStorage mock used: partial
-// (substring) match for strings, exact match otherwise.
+// Same "convenience" matching the old localStorage/SQLite mock used:
+// partial (substring) match for strings, exact match otherwise. Kept as
+// plain JS filtering (rather than translating to Mongo query operators)
+// so behavior is identical to before — this is a small demo-scale
+// dataset, not a case that needs query-level optimization.
 function matches(query, item) {
     if (!query) return true;
     return Object.keys(query).every((k) => {
@@ -40,48 +45,37 @@ function assertTable(table) {
     }
 }
 
-function readAll(table) {
-    const rows = db.prepare(`SELECT id, data, created_at FROM ${table}`).all();
-    return rows.map((r) => ({ ...JSON.parse(r.data), id: r.id, created_at: r.created_at }));
+async function readAll(table) {
+    assertTable(table);
+    const docs = await db.collection(table).find({}).toArray();
+    return docs.map((d) => ({ ...d, id: d._id }));
 }
 
-export function list(table, sort, limit) {
-    assertTable(table);
-    let items = sortItems(readAll(table), sort);
+export async function list(table, sort, limit) {
+    let items = sortItems(await readAll(table), sort);
     if (limit) items = items.slice(0, limit);
     return items.map((it) => sanitize(table, it));
 }
 
-export function filter(table, query, sort) {
-    assertTable(table);
-    const items = sortItems(readAll(table).filter((it) => matches(query, it)), sort);
+export async function filter(table, query, sort) {
+    const items = sortItems((await readAll(table)).filter((it) => matches(query, it)), sort);
     return items.map((it) => sanitize(table, it));
 }
 
-export function get(table, id) {
+export async function get(table, id) {
     assertTable(table);
-    const row = db.prepare(`SELECT id, data, created_at FROM ${table} WHERE id = ?`).get(id);
-    if (!row) return null;
-    return sanitize(table, { ...JSON.parse(row.data), id: row.id, created_at: row.created_at });
+    const doc = await db.collection(table).findOne({ _id: id });
+    if (!doc) return null;
+    return sanitize(table, { ...doc, id: doc._id });
 }
 
-export function create(table, payload) {
+export async function create(table, payload) {
     assertTable(table);
     const id = String(Date.now()) + Math.random().toString(36).slice(2, 8);
-    const createdAt = new Date().toISOString();
-    const record = { ...payload, id };
-    if (!record.created_date) record.created_date = createdAt;
+    const record = { ...payload, id, _id: id };
+    if (!record.created_date) record.created_date = new Date().toISOString();
 
     if (table === 'app_users') {
-        if (record.national_id) {
-            const existing = filter('app_users', { national_id: record.national_id });
-            const exact = existing.find((u) => String(u.national_id) === String(record.national_id));
-            if (exact) {
-                const err = new Error('user_exists');
-                err.status = 409;
-                throw err;
-            }
-        }
         if (record.password) {
             const { password_hash, password_salt } = hashPassword(record.password);
             record.password_hash = password_hash;
@@ -91,21 +85,27 @@ export function create(table, payload) {
         if (!record.user_type) record.user_type = 'regular';
     }
 
-    db.prepare(`INSERT INTO ${table} (id, data, created_at) VALUES (?, ?, ?)`).run(
-        id, JSON.stringify(record), createdAt
-    );
+    try {
+        await db.collection(table).insertOne(record);
+    } catch (err) {
+        if (err.code === 11000) { // duplicate key -> national_id unique index
+            const dup = new Error('user_exists');
+            dup.status = 409;
+            throw dup;
+        }
+        throw err;
+    }
     return sanitize(table, record);
 }
 
-export function update(table, id, updates) {
+export async function update(table, id, updates) {
     assertTable(table);
-    const row = db.prepare(`SELECT id, data, created_at FROM ${table} WHERE id = ?`).get(id);
-    if (!row) {
+    const current = await db.collection(table).findOne({ _id: id });
+    if (!current) {
         const err = new Error('not_found');
         err.status = 404;
         throw err;
     }
-    const current = JSON.parse(row.data);
     const patch = { ...updates };
 
     if (table === 'app_users') {
@@ -132,23 +132,17 @@ export function update(table, id, updates) {
         }
     }
 
-    const next = { ...current, ...patch, id: row.id };
-    db.prepare(`UPDATE ${table} SET data = ? WHERE id = ?`).run(JSON.stringify(next), id);
+    const next = { ...current, ...patch, id: current._id, _id: current._id };
+    await db.collection(table).replaceOne({ _id: current._id }, next);
     return sanitize(table, next);
 }
 
-export function login(nationalId, password) {
-    const users = filter_raw('app_users', { national_id: nationalId });
+export async function login(nationalId, password) {
+    const users = (await readAll('app_users')).filter((it) => matches({ national_id: nationalId }, it));
     const user = users.find((u) => String(u.national_id) === String(nationalId));
     if (!user) return null;
     if (!verifyPassword(password, user.password_hash, user.password_salt)) return null;
     return sanitize('app_users', user);
-}
-
-// Internal variant of filter() that does NOT sanitize — used only for the
-// login check, which needs the password hash to verify against.
-function filter_raw(table, query) {
-    return readAll(table).filter((it) => matches(query, it));
 }
 
 // Bootstraps a built-in admin account on first run so the system always
@@ -158,8 +152,8 @@ function filter_raw(table, query) {
 // Credentials come from env vars so they can be set for a real
 // deployment; falls back to the same demo credentials AdminSeed.jsx uses
 // so local/dev behavior is unchanged.
-export function ensureDefaultAdmin() {
-    const hasAdmin = readAll('app_users').some((u) => u.user_type === 'admin');
+export async function ensureDefaultAdmin() {
+    const hasAdmin = (await readAll('app_users')).some((u) => u.user_type === 'admin');
     if (hasAdmin) return { created: false };
 
     const nationalId = process.env.ADMIN_NATIONAL_ID || '1000000001';
@@ -167,7 +161,7 @@ export function ensureDefaultAdmin() {
     const fullName = process.env.ADMIN_FULL_NAME || 'System Admin';
 
     try {
-        const admin = create('app_users', {
+        const admin = await create('app_users', {
             national_id: nationalId,
             full_name: fullName,
             phone_number: process.env.ADMIN_PHONE || '0500000000',

@@ -13,12 +13,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NODE_VERSION
-        value: 22.11.0
-    # NOTE: no persistent disk here — Render's free plan doesn't support
-    # them. Without one, server/data.sqlite lives on ephemeral storage and
-    # is WIPED on every deploy and whenever the free instance spins down
-    # from inactivity. See the "Persistent storage" section in README.md
-    # before relying on this for real data — upgrade to a paid plan and
-    # add a disk (see render.yaml git history), or move to a managed
-    # database, once that matters.
+      # Real, persistent storage lives in MongoDB Atlas, not on this
+      # service's own (ephemeral, free-tier) disk — so no local disk is
+      # needed here. sync: false means Render won't store a value in this
+      # file; it prompts for it (kept as a secret) when the blueprint is
+      # applied. Get this from Atlas: Cluster -> Connect -> Drivers.
+      - key: MONGODB_URI
+        sync: false

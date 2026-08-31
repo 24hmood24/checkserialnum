@@ -1,8 +1,33 @@
 # CheckSerialNum
 
-A Vite + React frontend with a real Express + SQLite backend (see [`server/`](./server)).
+A Vite + React frontend with a real Express + MongoDB backend (see [`server/`](./server)).
 Device-check, theft reports, purchase certificates and user accounts are stored in a
-real, persistent database — not in the browser.
+real, persistent, shared database — not in the browser, and not on the server's own
+disk (so it survives redeploys and restarts).
+
+## Database (MongoDB)
+
+The app needs a MongoDB connection string in `MONGODB_URI`. Any MongoDB works, but
+[MongoDB Atlas](https://www.mongodb.com/cloud/atlas) has a free tier that's plenty for
+this app:
+
+1. Create a free cluster on Atlas.
+2. **Network Access**: allow connections from `0.0.0.0/0` (anywhere) — your host's
+   outbound IP isn't static, especially on a platform like Render.
+3. **Database Access**: create a database user (username + password) — save the
+   password immediately, Atlas only shows it once.
+4. **Connect → Drivers**: copy the connection string. It looks like
+   `mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/`.
+5. Put that string (with the real password substituted in) in `MONGODB_URI`.
+
+For local dev, put it in a `.env` file at the repo root (already gitignored):
+
+```
+MONGODB_URI=mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/
+```
+
+`server/db.js` loads that `.env` file automatically on startup (via Node's built-in
+`process.loadEnvFile()`) if one exists — nothing extra to configure.
 
 ## Running locally
 
@@ -18,6 +43,10 @@ URL Vite prints (usually http://localhost:5173).
 To run the pieces separately: `npm run dev:web` (Vite only) and `npm run dev:api`
 (API only, http://localhost:3001).
 
+On first boot with no admin account in the database, the server creates one
+automatically and logs the credentials once — see the "Default admin account"
+section below.
+
 ## Building / running in production
 
 ```bash
@@ -27,76 +56,61 @@ npm start
 
 `npm start` runs a single Node process (`server/index.js`) that serves both the API
 and the built frontend from `dist/` — one process, one port. Set `PORT` to change the
-port (defaults to 3001), and `DB_PATH` to control where the SQLite file is written
-(defaults to `server/data.sqlite`).
+port (defaults to 3001).
+
+## Default admin account
+
+The server checks on every boot whether any admin account exists in the database; if
+not, it creates one and logs the credentials to the console **once**:
+
+- National ID: `ADMIN_NATIONAL_ID` env var, default `1000000001`
+- Password: `ADMIN_PASSWORD` env var, default `adminpass`
+
+Set `ADMIN_NATIONAL_ID` / `ADMIN_PASSWORD` (and optionally `ADMIN_FULL_NAME`,
+`ADMIN_PHONE`) before the **first** boot to choose your own instead of the default —
+or just log in with the default and change the password from the account page
+afterward. This only ever creates an admin when none exists; it never touches an
+existing one.
 
 ## Deploying to checkserialnum.com
 
-⚠️ **This app now needs a real Node.js server — it can no longer run on GitHub Pages**
-(GitHub Pages only serves static files; it can't run `server/index.js` or persist a
-database). The `.github/workflows/deploy.yml` GitHub Pages workflow in this repo is
-left over from before the real backend existed and is no longer the deployment path
-for this app — either remove it or repoint the domain, but don't rely on it going
-forward.
+⚠️ **This app needs a real Node.js server — it can no longer run on GitHub Pages**
+(GitHub Pages only serves static files; it can't run `server/index.js`). The
+`.github/workflows/deploy.yml` GitHub Pages workflow in this repo is left over from
+before the real backend existed and is no longer the deployment path for this app —
+either remove it or repoint the domain, but don't rely on it going forward.
 
 ### Deploying to Render (recommended — free/cheap, simplest)
 
-A `render.yaml` blueprint is included, so most of this is automatic once you connect
-your account:
+A `render.yaml` blueprint is included:
 
 1. Sign up at [render.com](https://render.com) and connect your GitHub account.
 2. **New → Blueprint**, pick this repository (branch: whichever branch has this
-   `render.yaml` — merge it to `main` first if you'd rather deploy from there) —
-   Render reads `render.yaml` and creates the service automatically (build:
-   `npm ci && npm run build`, start: `npm start`).
-3. Once it's live, Render gives you a URL like `checkserialnum.onrender.com` —
+   `render.yaml` — merge it to `main` first if you'd rather deploy from there).
+3. Render will prompt for `MONGODB_URI` (marked `sync: false` in the blueprint, so
+   it's never stored in the repo) — paste the connection string from the "Database"
+   section above.
+4. Once it's live, Render gives you a URL like `checkserialnum.onrender.com` —
    confirm the site works there first.
-4. In Render's dashboard → your service → **Settings → Custom Domains**, add
+5. In Render's dashboard → your service → **Settings → Custom Domains**, add
    `checkserialnum.com` (and `www.checkserialnum.com` if you use it). Render shows
    you the exact DNS records to set.
-5. At your domain registrar, replace the current GitHub Pages DNS records (the
-   `185.199.10x.x` A records / CNAME described below) with the records Render gave
-   you in step 4.
-6. DNS propagation can take up to a few hours (sometimes up to 48h).
+6. At your domain registrar, replace the current GitHub Pages DNS records (the
+   `185.199.10x.x` A records described below) with the records Render gave you.
+7. DNS propagation can take up to a few hours (sometimes up to 48h).
 
 Free-tier note: Render's free web services spin down after periods of inactivity and
-take a few seconds to wake back up on the next request — fine for a demo/low-traffic
-site, but worth knowing.
-
-#### ⚠️ Persistent storage on the free plan
-
-Render's **free** plan does not support persistent disks. Without one,
-`server/data.sqlite` lives on ephemeral storage — it gets **wiped every time the
-service redeploys, and whenever the free instance spins down from inactivity and
-restarts**. That means registered accounts, reports, and certificates can disappear
-on a free-plan deploy. Two ways to actually keep data long-term:
-
-- **Upgrade to a paid Render plan** (Starter or higher) and add a disk back to
-  `render.yaml`:
-  ```yaml
-  envVars:
-    - key: DB_PATH
-      value: /var/data/checkserialnum.sqlite
-  disk:
-    name: checkserialnum-data
-    mountPath: /var/data
-    sizeGB: 1
-  ```
-- **Move to a managed database** instead of the SQLite file (bigger change — would
-  need `server/db.js`/`server/store.js` rewritten against e.g. Render's managed
-  Postgres) — ask if you want this done.
-
-Until one of those is in place, treat a free-plan deployment as a demo, not the
-system of record.
+take a few seconds to wake back up on the next request — this no longer affects your
+*data* (that's in MongoDB now, not on this service's disk), just response time on the
+first request after a spin-down.
 
 ### Other options
 
 - **A VPS you already control** (DigitalOcean, Hetzner, etc.): `git pull`,
-  `npm ci && npm run build`, run `npm start` behind a process manager (pm2/systemd)
-  and an Nginx reverse proxy with TLS.
-- **Any other Node-capable PaaS** (Railway, Fly.io, etc.) — same idea as Render:
-  build with `npm run build`, start with `npm start`, give it a persistent volume for
-  the SQLite file via `DB_PATH`.
+  `npm ci && npm run build`, run `npm start` (with `MONGODB_URI` set) behind a process
+  manager (pm2/systemd) and an Nginx reverse proxy with TLS.
+- **Any other Node-capable PaaS** (Railway, Fly.io, etc.) — same idea: build with
+  `npm run build`, start with `npm start`, set `MONGODB_URI`.
 
 ### Old GitHub Pages DNS records (for reference / cleanup)
 

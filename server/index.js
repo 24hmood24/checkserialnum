@@ -13,44 +13,44 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const asyncRoute = (fn) => (req, res) => {
+const asyncRoute = (fn) => async (req, res) => {
     try {
-        fn(req, res);
+        await fn(req, res);
     } catch (err) {
         res.status(err.status || 500).json({ error: err.message || 'Server error' });
     }
 };
 
 // Generic entity CRUD — mirrors what the old localStorage mock exposed
-// (list/filter/create/update/get), now backed by real SQLite storage.
-app.get('/api/entities/:table', asyncRoute((req, res) => {
+// (list/filter/create/update/get), now backed by real MongoDB storage.
+app.get('/api/entities/:table', asyncRoute(async (req, res) => {
     const { sort, limit } = req.query;
-    res.json({ data: store.list(req.params.table, sort, limit ? Number(limit) : undefined) });
+    res.json({ data: await store.list(req.params.table, sort, limit ? Number(limit) : undefined) });
 }));
 
-app.post('/api/entities/:table/filter', asyncRoute((req, res) => {
+app.post('/api/entities/:table/filter', asyncRoute(async (req, res) => {
     const { query, sort } = req.body || {};
-    res.json({ data: store.filter(req.params.table, query, sort) });
+    res.json({ data: await store.filter(req.params.table, query, sort) });
 }));
 
-app.get('/api/entities/:table/:id', asyncRoute((req, res) => {
-    const item = store.get(req.params.table, req.params.id);
+app.get('/api/entities/:table/:id', asyncRoute(async (req, res) => {
+    const item = await store.get(req.params.table, req.params.id);
     res.json({ data: item });
 }));
 
-app.post('/api/entities/:table', asyncRoute((req, res) => {
-    res.status(201).json({ data: store.create(req.params.table, req.body || {}) });
+app.post('/api/entities/:table', asyncRoute(async (req, res) => {
+    res.status(201).json({ data: await store.create(req.params.table, req.body || {}) });
 }));
 
-app.patch('/api/entities/:table/:id', asyncRoute((req, res) => {
-    res.json({ data: store.update(req.params.table, req.params.id, req.body || {}) });
+app.patch('/api/entities/:table/:id', asyncRoute(async (req, res) => {
+    res.json({ data: await store.update(req.params.table, req.params.id, req.body || {}) });
 }));
 
 // Dedicated login endpoint — password verification must happen on the
 // server, never by shipping a hash to the client for comparison.
-app.post('/api/auth/login', asyncRoute((req, res) => {
+app.post('/api/auth/login', asyncRoute(async (req, res) => {
     const { nationalId, password } = req.body || {};
-    const user = store.login(nationalId, password);
+    const user = await store.login(nationalId, password);
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
     res.json({ data: user });
 }));
@@ -66,7 +66,7 @@ if (fs.existsSync(DIST_DIR)) {
     });
 }
 
-const adminBootstrap = store.ensureDefaultAdmin();
+const adminBootstrap = await store.ensureDefaultAdmin();
 if (adminBootstrap.created) {
     console.log('==============================================');
     console.log('No admin account existed — created a default one:');
