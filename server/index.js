@@ -67,13 +67,17 @@ if (fs.existsSync(DIST_DIR)) {
 }
 
 const adminBootstrap = await store.ensureDefaultAdmin();
-if (adminBootstrap.created) {
+if (adminBootstrap.created || adminBootstrap.replaced) {
     console.log('==============================================');
-    console.log('No admin account existed — created a default one:');
+    console.log(adminBootstrap.created
+        ? 'No admin account existed — created a default one:'
+        : 'Replaced the untouched factory-default admin with configured credentials:');
     console.log(`  National ID: ${adminBootstrap.nationalId}`);
     console.log(`  Password:    ${adminBootstrap.password}`);
-    console.log('Log in and change this password, or set ADMIN_NATIONAL_ID /');
-    console.log('ADMIN_PASSWORD env vars before first boot to use your own.');
+    if (adminBootstrap.created) {
+        console.log('Log in and change this password, or set ADMIN_NATIONAL_ID /');
+        console.log('ADMIN_PASSWORD env vars before first boot to use your own.');
+    }
     console.log('==============================================');
 }
 

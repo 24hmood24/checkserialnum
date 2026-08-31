@@ -145,33 +145,64 @@ export async function login(nationalId, password) {
     return sanitize('app_users', user);
 }
 
+// The factory-default admin id used when no ADMIN_NATIONAL_ID is
+// configured — never changes, so a later boot can recognize "this is
+// still the untouched demo admin" and safely replace it.
+const FACTORY_DEFAULT_ADMIN_ID = '1000000001';
+
 // Bootstraps a built-in admin account on first run so the system always
 // has one, instead of relying on someone visiting /admin-seed by hand.
-// Only acts when NO admin exists yet — it will never touch an existing
-// admin account (e.g. one whose password was already changed).
 // Credentials come from env vars so they can be set for a real
 // deployment; falls back to the same demo credentials AdminSeed.jsx uses
 // so local/dev behavior is unchanged.
+//
+// - No admin exists yet -> create one.
+// - An admin exists, but it's still exactly the untouched factory-default
+//   account (national_id === '1000000001') and ADMIN_NATIONAL_ID now
+//   configures a different id -> replace its credentials with the
+//   configured ones (this is the "I just set real admin creds after the
+//   demo account auto-created" case).
+// - Any other existing admin (a real, already-customized one) -> never
+//   touched.
 export async function ensureDefaultAdmin() {
-    const hasAdmin = (await readAll('app_users')).some((u) => u.user_type === 'admin');
-    if (hasAdmin) return { created: false };
+    const admins = (await readAll('app_users')).filter((u) => u.user_type === 'admin');
 
-    const nationalId = process.env.ADMIN_NATIONAL_ID || '1000000001';
+    const nationalId = process.env.ADMIN_NATIONAL_ID || FACTORY_DEFAULT_ADMIN_ID;
     const password = process.env.ADMIN_PASSWORD || 'adminpass';
     const fullName = process.env.ADMIN_FULL_NAME || 'System Admin';
+    const phone = process.env.ADMIN_PHONE || '0500000000';
 
-    try {
-        const admin = await create('app_users', {
-            national_id: nationalId,
-            full_name: fullName,
-            phone_number: process.env.ADMIN_PHONE || '0500000000',
-            user_type: 'admin',
-            password,
-        });
-        return { created: true, nationalId, password, id: admin.id };
-    } catch (err) {
-        // national_id already taken by a non-admin account — don't crash
-        // startup over it, just report that bootstrap didn't happen.
-        return { created: false, error: err.message };
+    if (admins.length === 0) {
+        try {
+            const admin = await create('app_users', {
+                national_id: nationalId,
+                full_name: fullName,
+                phone_number: phone,
+                user_type: 'admin',
+                password,
+            });
+            return { created: true, nationalId, password, id: admin.id };
+        } catch (err) {
+            // national_id already taken by a non-admin account — don't
+            // crash startup over it, just report bootstrap didn't happen.
+            return { created: false, error: err.message };
+        }
     }
+
+    const factoryDefault = admins.find((a) => a.national_id === FACTORY_DEFAULT_ADMIN_ID);
+    if (factoryDefault && nationalId !== FACTORY_DEFAULT_ADMIN_ID) {
+        try {
+            await update('app_users', factoryDefault.id, {
+                national_id: nationalId,
+                full_name: fullName,
+                phone_number: phone,
+                password,
+            });
+            return { replaced: true, nationalId, password, id: factoryDefault.id };
+        } catch (err) {
+            return { created: false, error: err.message };
+        }
+    }
+
+    return { created: false };
 }

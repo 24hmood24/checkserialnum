@@ -69,8 +69,15 @@ not, it creates one and logs the credentials to the console **once**:
 Set `ADMIN_NATIONAL_ID` / `ADMIN_PASSWORD` (and optionally `ADMIN_FULL_NAME`,
 `ADMIN_PHONE`) before the **first** boot to choose your own instead of the default —
 or just log in with the default and change the password from the account page
-afterward. This only ever creates an admin when none exists; it never touches an
-existing one.
+afterward.
+
+If the database already has the untouched factory-default admin (national ID
+`1000000001`) and you set `ADMIN_NATIONAL_ID` to something else afterward, the next
+boot replaces that account's credentials with the configured ones (logged once, same
+as a fresh create) — this covers "I just want real admin credentials instead of the
+auto-created demo ones" without a manual DB edit. Any admin account that's already
+been customized (a different national ID, or the same one but a changed password) is
+never touched.
 
 ## Deploying to checkserialnum.com
 
