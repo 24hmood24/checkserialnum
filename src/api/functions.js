@@ -1,6 +1,5 @@
 import { StolenDevice, PurchaseCertificate, AppUser, User } from './entities';
 
-// Local implementations that operate on the mock entities.
 export async function checkDevice({ serialNumber }) {
     try {
         const normalized = String(serialNumber || '').toLowerCase();
@@ -24,7 +23,8 @@ export async function checkDevice({ serialNumber }) {
 export async function findUserByNationalId({ nationalId }) {
     try {
         const users = await AppUser.filter({ national_id: nationalId });
-        if (users && users.length > 0) return { data: { exists: true, user: users[0] } };
+        const exact = users && users.find((u) => String(u.national_id) === String(nationalId));
+        if (exact) return { data: { exists: true, user: exact } };
         return { data: { exists: false } };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
@@ -40,29 +40,34 @@ export async function registerUser(payload) {
     }
 }
 
+// Real login: password verification happens server-side (server/store.js),
+// this just relays the result. Never compare passwords in the browser.
 export async function loginUser({ nationalId, password }) {
     try {
-        const users = await AppUser.filter({ national_id: nationalId });
-        const user = users && users[0];
-        if (!user) return { data: null, error: 'not_found', status: 404 };
-        // Very small mock check: if password field exists and matches
-        if (user.password && password && String(user.password) === String(password)) {
-            await User.setCurrent(user);
-            return { data: user };
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nationalId, password }),
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            return { data: null, error: body.error || 'invalid_credentials', status: res.status };
         }
-        return { data: null, error: 'invalid_credentials', status: 401 };
+        const body = await res.json();
+        await User.setCurrent(body.data);
+        return { data: body.data };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
     }
 }
 
-export async function updateUserProfile(id, updates) {
-    try {
-        const res = await AppUser.update(id, updates);
-        return { data: res.data };
-    } catch (err) {
-        return { data: null, error: err && err.message ? err.message : String(err) };
-    }
+// Note: intentionally does NOT catch — callers (UserProfileTab.jsx,
+// UserDashboard.jsx) rely on the axios-like error shape entities.js
+// already attaches (apiError.response?.data?.error) to show a friendly
+// "wrong current password" message.
+export async function updateUserProfile({ userId, updates }) {
+    const res = await AppUser.update(userId, updates);
+    return { data: res.data };
 }
 
 export async function createStolenDeviceReport(payload) {
@@ -93,9 +98,12 @@ export async function getAdminDashboardData() {
     }
 }
 
-export async function updateStolenDeviceReport(id, updates) {
+// NOTE: this used to take (id, updates) positionally, but every call site
+// passes a single { reportId, updates } object — the mismatch meant report
+// status updates (approve/reject closure, edits) always silently failed.
+export async function updateStolenDeviceReport({ reportId, updates }) {
     try {
-        const res = await StolenDevice.update(id, updates);
+        const res = await StolenDevice.update(reportId, updates);
         return { data: res.data };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
@@ -115,7 +123,7 @@ export async function repairMyAccount() {
 export async function validateResetRequest({ nationalId, phoneNumber }) {
     try {
         const users = await AppUser.filter({ national_id: nationalId });
-        const user = users && users[0];
+        const user = users && users.find((u) => String(u.national_id) === String(nationalId));
         if (!user) return { data: { success: false } };
         const normalizedInputPhone = String(phoneNumber || '').replace(/\D/g, '');
         const normalizedUserPhone = String(user.phone_number || '').replace(/\D/g, '');
@@ -136,5 +144,3 @@ export async function resetPassword({ userId, newPassword }) {
         return { data: null, error: err && err.message ? err.message : String(err) };
     }
 }
-
-

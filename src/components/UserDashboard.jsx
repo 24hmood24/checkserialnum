@@ -943,6 +943,16 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
 
     try {
       if (userInfoData.newPassword) {
+        if (!userInfoData.currentPassword) {
+          setNotificationState({
+            isOpen: true,
+            status: 'danger',
+            title: t('validationErrorTitle'),
+            content: <p>{t('currentPasswordRequiredForChange')}</p>
+          });
+          setSaveLoading(false);
+          return;
+        }
         if (!validatePassword(userInfoData.newPassword)) {
           setNotificationState({
             isOpen: true,
@@ -964,8 +974,11 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
           return;
         }
 
-        updates.currentPassword = userInfoData.currentPassword;
-        updates.newPassword = userInfoData.newPassword;
+        // NOTE: these must match the server's expected field names
+        // (server/store.js) — it verifies current_password before
+        // accepting new_password.
+        updates.current_password = userInfoData.currentPassword;
+        updates.new_password = userInfoData.newPassword;
       }
 
       // CORRECTED: Use AppUser entity to update
@@ -991,11 +1004,14 @@ export default function UserDashboard({ t, user, onLogout, setNotification, user
       handleDataUpdate();
     } catch (error) {
       console.error("Update user info error:", error);
+      const message = error.response?.data?.error === 'Incorrect current password'
+        ? t('passwordIncorrectError')
+        : (error.message || t('updateError'));
       setNotificationState({
         isOpen: true,
         status: 'danger',
         title: t('updateErrorTitle'),
-        content: <p>{error.message || t('updateError')}</p>
+        content: <p>{message}</p>
       });
     } finally {
       setSaveLoading(false);

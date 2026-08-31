@@ -1,79 +1,69 @@
-// Simple mock entities backed by localStorage so the app works without Base44.
-// Provides: StolenDevice, PurchaseCertificate, AppUser with methods:
-// list(sort, limit), filter(query, sort), create(obj), update(id, updates)
+// Real entities backed by the Express + SQLite API server (see /server).
+// Same public shape as the old localStorage mock — list/filter/create/update/get —
+// so every component that already imports these keeps working unchanged.
 
-function storageKey(name) {
-    return `mock:${name}`;
-}
+const BASE = '/api/entities';
 
-function readStore(name) {
+async function parseOrThrow(res) {
+    let body = null;
     try {
-        const raw = localStorage.getItem(storageKey(name));
-        return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-        return [];
+        body = await res.json();
+    } catch {
+        // no JSON body
     }
-}
-
-function writeStore(name, arr) {
-    localStorage.setItem(storageKey(name), JSON.stringify(arr));
-}
-
-function matches(query, item) {
-    if (!query) return true;
-    return Object.keys(query).every((k) => {
-        if (query[k] === undefined || query[k] === null) return true;
-        // simple partial/string match for convenience
-        const val = item[k];
-        if (typeof query[k] === 'string') {
-            return String(val).toLowerCase().includes(String(query[k]).toLowerCase());
-        }
-        return val === query[k];
-    });
+    if (!res.ok) {
+        const message = (body && body.error) || `Request failed (${res.status})`;
+        const err = new Error(message);
+        // Mirror the shape UserProfileTab.jsx already checks
+        // (apiError.response?.data?.error), so no UI code needs to change.
+        err.response = { data: { error: message }, status: res.status };
+        throw err;
+    }
+    return body;
 }
 
 function makeEntity(name) {
     return {
         async list(sort, limit) {
-            let items = readStore(name);
-            if (sort && typeof sort === 'string') {
-                const desc = sort.startsWith('-');
-                const field = desc ? sort.slice(1) : sort;
-                items = items.sort((a, b) => (a[field] > b[field] ? 1 : -1));
-                if (desc) items = items.reverse();
-            }
-            if (limit) return items.slice(0, limit);
-            return items;
+            const params = new URLSearchParams();
+            if (sort) params.set('sort', sort);
+            if (limit) params.set('limit', String(limit));
+            const qs = params.toString();
+            const res = await fetch(`${BASE}/${name}${qs ? `?${qs}` : ''}`);
+            const body = await parseOrThrow(res);
+            return body.data;
         },
         async filter(query, sort) {
-            const items = readStore(name).filter((it) => matches(query, it));
-            if (sort && typeof sort === 'string') {
-                const desc = sort.startsWith('-');
-                const field = desc ? sort.slice(1) : sort;
-                items.sort((a, b) => (a[field] > b[field] ? 1 : -1));
-                if (desc) items.reverse();
-            }
-            return items;
+            const res = await fetch(`${BASE}/${name}/filter`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query, sort }),
+            });
+            const body = await parseOrThrow(res);
+            return body.data;
         },
         async create(obj) {
-            const items = readStore(name);
-            const id = String(Date.now()) + Math.random().toString(36).slice(2, 8);
-            const record = { id, ...obj };
-            items.unshift(record);
-            writeStore(name, items);
-            return { data: record };
+            const res = await fetch(`${BASE}/${name}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(obj),
+            });
+            const body = await parseOrThrow(res);
+            return { data: body.data };
         },
         async update(id, updates) {
-            const items = readStore(name);
-            const idx = items.findIndex((i) => String(i.id) === String(id));
-            if (idx === -1) return { data: null, error: 'not_found' };
-            items[idx] = { ...items[idx], ...updates };
-            writeStore(name, items);
-            return { data: items[idx] };
+            const res = await fetch(`${BASE}/${name}/${encodeURIComponent(id)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            const body = await parseOrThrow(res);
+            return { data: body.data };
         },
         async get(id) {
-            const items = readStore(name);
-            return items.find((i) => String(i.id) === String(id)) || null;
+            const res = await fetch(`${BASE}/${name}/${encodeURIComponent(id)}`);
+            const body = await parseOrThrow(res);
+            return body.data;
         },
     };
 }
@@ -82,13 +72,15 @@ export const StolenDevice = makeEntity('stolen_devices');
 export const PurchaseCertificate = makeEntity('purchase_certificates');
 export const AppUser = makeEntity('app_users');
 
-// auth shim: simple wrapper around AppUser for login-like behavior
+// Session shim: which user is currently logged in on THIS browser. This is
+// purely a client-side convenience (like a cookie) — it doesn't need to hit
+// the server, unlike the actual user records above.
 export const User = {
     async getCurrent() {
         try {
             const raw = localStorage.getItem('mock:current_user');
             return raw ? JSON.parse(raw) : null;
-        } catch (e) {
+        } catch {
             return null;
         }
     },

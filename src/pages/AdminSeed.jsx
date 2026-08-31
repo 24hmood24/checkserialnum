@@ -6,17 +6,28 @@ export default function AdminSeed() {
     const [output, setOutput] = useState('');
 
     const seed = async () => {
-        // create demo users
-        await AppUser.create({ national_id: '1000000001', full_name: 'Demo Admin', phone_number: '0500000001', user_type: 'admin', password: 'adminpass' });
-        await AppUser.create({ national_id: '1000000002', full_name: 'Demo User', phone_number: '0500000002', user_type: 'regular', password: 'userpass' });
+        // national_id is unique now that data lives in a real database, so
+        // seeding twice must not blow up — skip anything that already exists.
+        const tryCreate = async (label, fn) => {
+            try {
+                await fn();
+                return `${label}: created`;
+            } catch (e) {
+                return `${label}: skipped (${e.message || 'already exists'})`;
+            }
+        };
 
-        // create demo certificate
-        await PurchaseCertificate.create({ certificateNumber: '0000000001', buyerId: '1000000002', buyerName: 'Demo User', deviceType: 'phone', serialNumber: 'abc123', issueDate: new Date().toISOString(), status: 'active' });
+        const results = [];
+        results.push(await tryCreate('Demo Admin', () =>
+            AppUser.create({ national_id: '1000000001', full_name: 'Demo Admin', phone_number: '0500000001', user_type: 'admin', password: 'adminpass' })));
+        results.push(await tryCreate('Demo User', () =>
+            AppUser.create({ national_id: '1000000002', full_name: 'Demo User', phone_number: '0500000002', user_type: 'regular', password: 'userpass' })));
+        results.push(await tryCreate('Demo Certificate', () =>
+            PurchaseCertificate.create({ certificateNumber: '0000000001', buyerId: '1000000002', buyerName: 'Demo User', deviceType: 'phone', serialNumber: 'abc123', issueDate: new Date().toISOString(), status: 'active' })));
+        results.push(await tryCreate('Demo Stolen Report', () =>
+            StolenDevice.create({ serialNumber: 'stolen123', deviceType: 'phone', reporterNationalId: '1000000003', status: 'active', theftDate: new Date().toISOString(), location: 'Riyadh' })));
 
-        // create demo stolen report
-        await StolenDevice.create({ serialNumber: 'stolen123', deviceType: 'phone', reporterNationalId: '1000000003', status: 'active', created_date: new Date().toISOString(), theftDate: new Date().toISOString(), location: 'Riyadh' });
-
-        setOutput('Seeded demo users, certificate and stolen report.');
+        setOutput(results.join('\n'));
     };
 
     const exportData = async () => {
@@ -71,7 +82,7 @@ export default function AdminSeed() {
                     <Button onClick={() => importData(document.getElementById('importArea').value)}>Import JSON</Button>
                 </div>
             </div>
-            {output && <div className="mt-4 p-3 bg-gray-100 rounded">{output}</div>}
+            {output && <div className="mt-4 p-3 bg-gray-100 rounded whitespace-pre-line">{output}</div>}
         </div>
     );
 }
