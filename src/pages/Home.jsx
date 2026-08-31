@@ -1048,8 +1048,8 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
               value={formData.reporterNationalId}
               onChange={handleChange}
               placeholder={t('reporterNationalId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
@@ -1414,8 +1414,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               value={formData.buyerId}
               onChange={handleChange}
               placeholder={t('buyerId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
@@ -1438,8 +1438,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               value={formData.sellerId}
               onChange={handleChange}
               placeholder={t('sellerId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
@@ -1450,8 +1450,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               value={formData.sellerPhone}
               onChange={handleChange}
               placeholder={t('sellerPhone')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
           </div>
@@ -1486,8 +1486,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
             value={formData.purchasePrice}
             onChange={handleChange}
             placeholder={t('purchasePrice')}
-            dir="ltr"
-            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            dir={translations[t('lang')].dir}
+            className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
             required
           />
 
