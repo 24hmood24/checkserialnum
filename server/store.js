@@ -37,6 +37,29 @@ function sortItems(items, sort) {
     return desc ? sorted.reverse() : sorted;
 }
 
+// 3 letters + 3 digits (e.g. "XJQ482") — checked against existing
+// reports so two theft reports never end up with the same public ID.
+const REPORT_ID_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+function randomReportId() {
+    let letters = '';
+    for (let i = 0; i < 3; i++) {
+        letters += REPORT_ID_LETTERS[Math.floor(Math.random() * REPORT_ID_LETTERS.length)];
+    }
+    const digits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+    return `${letters}${digits}`;
+}
+
+async function generateUniqueReportId() {
+    for (let attempt = 0; attempt < 10; attempt++) {
+        const candidate = randomReportId();
+        const existing = await db.collection('stolen_devices').findOne({ reportId: candidate });
+        if (!existing) return candidate;
+    }
+    // Astronomically unlikely (26^3 * 10^3 possible ids), but never leave
+    // a report with no id at all.
+    return `${randomReportId()}${Date.now().toString(36).slice(-3).toUpperCase()}`;
+}
+
 function assertTable(table) {
     if (!TABLES.includes(table)) {
         const err = new Error(`Unknown entity "${table}"`);
@@ -83,6 +106,10 @@ export async function create(table, payload) {
             delete record.password;
         }
         if (!record.user_type) record.user_type = 'regular';
+    }
+
+    if (table === 'stolen_devices' && !record.reportId) {
+        record.reportId = await generateUniqueReportId();
     }
 
     try {

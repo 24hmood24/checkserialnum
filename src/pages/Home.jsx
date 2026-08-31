@@ -66,7 +66,12 @@ const normalizePhoneNumber = (phone) => {
 
 
 // Input validation helpers
-const enforceNumeric = (value) => value.replace(/[^0-9]/g, '');
+// Converts Arabic-Indic digits (typed by an Arabic mobile keyboard) to
+// Western digits before stripping anything else — otherwise those digits
+// get silently deleted (they aren't in [0-9]) instead of converted, which
+// can corrupt an ID typed on such a keyboard into something that no
+// longer matches the account it belongs to.
+const enforceNumeric = (value) => normalizeNumbers(value).replace(/[^0-9]/g, '');
 const enforceAlphabetic = (value) => value.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '');
 const isValidLocation = (value) => !/^[0-9\s]+$/.test(value.trim());
 
@@ -1226,10 +1231,22 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       // Data is sent as plaintext.
       const normalizedSerialNumber = normalizeSerial(formData.serialNumber);
 
+      // A seller registered with a commercial registration number (a
+      // store, not a private individual) can sell to a walk-in buyer who
+      // has no account on the system yet. The buyer's national ID is
+      // still recorded on the certificate exactly as usual, so if that
+      // person later creates an account, their devices already show up
+      // (UserDashboard looks up certificates by buyerId == national_id,
+      // not by any account link) -- an account isn't a prerequisite for
+      // that, just for logging in to view it sooner.
+      const sellerIdTypeEarly = detectIdType(formData.sellerId);
+      const sellerIsCommercial = sellerIdTypeEarly === 'commercial_reg';
+
       // Backend `findUserByNationalId` now works reliably with plaintext.
       const { data: buyerCheckResponse } = await findUserByNationalId({ nationalId: formData.buyerId });
+      const buyerExists = buyerCheckResponse?.exists && buyerCheckResponse?.data?.user;
 
-      if (!buyerCheckResponse?.exists || !buyerCheckResponse?.data?.user) {
+      if (!buyerExists && !sellerIsCommercial) {
         setNotification({
           isOpen: true,
           title: t('certificateErrorTitle'),
@@ -1239,7 +1256,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
         setLoading(false);
         return;
       }
-      const buyerUser = buyerCheckResponse.data.user;
+      const buyerUser = buyerExists ? buyerCheckResponse.data.user : null;
 
       const { data: sellerCheckResponse } = await findUserByNationalId({ nationalId: formData.sellerId });
 
@@ -1336,7 +1353,9 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
         certificateNumber: newCertificateNumber,
         buyerIdType: buyerIdType,
         buyerId: formData.buyerId, // Plaintext
-        buyerName: buyerUser.full_name,
+        // Fall back to the typed name when the buyer has no account yet
+        // (commercial-registration-seller flow) -- buyerUser is null then.
+        buyerName: buyerUser?.full_name || formData.buyerName,
         buyerNameAtSale: formData.buyerName, // Use what user typed in buyerName field
         sellerIdType: sellerIdType,
         sellerNationalId: formData.sellerId, // Plaintext
