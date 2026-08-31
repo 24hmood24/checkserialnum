@@ -804,7 +804,26 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                         </Button>
                       </div>
                     </div>
-                  </motion.div> : null
+                  </motion.div> :
+                  checkResult.status === 'unknown' ?
+                    <motion.div key="unknown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center rounded-2xl p-2">
+                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 p-4 sm:p-6 rounded-full w-16 sm:w-24 h-16 sm:h-24 mx-auto mb-4 sm:mb-6">
+                        <AlertTriangle className="w-8 sm:w-12 h-8 sm:h-12 text-white mx-auto" />
+                      </div>
+                      <h3 className="2xl sm:text-3xl font-bold text-slate-600 mb-4">{t('unknownDeviceTitle')}</h3>
+                      <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 sm:p-6">
+                        <p className="text-slate-700 font-medium mb-4 text-sm sm:text-base">{t('deviceNotRegisteredMessage')}</p>
+                        <p className="text-slate-600 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => onQuickPurchase(checkResult.originalSerial)}
+                            className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white py-3 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                          >
+                            🛒 {t('buyThisDevice')}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div> : null
               }
             </AnimatePresence>
           </CardContent>
@@ -2250,6 +2269,8 @@ const translations = {
     enterSerialToStart: 'أدخل الرقم التسلسلي لبدء الفحص',
     resultWillShow: 'سيظهر هنا ما إذا كان الجهاز آمناً أم مسروقاً',
     safeDeviceTitle: '✅ جهاز آمن',
+    unknownDeviceTitle: 'ℹ️ جهاز غير مسجل',
+    deviceNotRegisteredMessage: 'لم يُعثر على أي سجل لهذا الجهاز — لا بلاغ سرقة ولا شهادة شراء مسجلة به. هذا لا يعني بالضرورة أن الجهاز آمن، فقط أنه غير مسجل بالنظام. يُنصح بالتحقق من مصدر الجهاز جيدًا قبل الشراء.',
     existingCertificate: 'تم العثور على شهادة شراء مسجلة لهذا الجهاز:',
     buyerName: 'اسم المشتري',
     issueDate: 'تاريخ الإصدار',
@@ -2548,6 +2569,8 @@ const translations = {
     enterSerialToStart: 'Enter a serial number to start the check',
     resultWillShow: 'The result will show here whether the device is safe or stolen',
     safeDeviceTitle: '✅ Safe Device',
+    unknownDeviceTitle: 'ℹ️ Unregistered Device',
+    deviceNotRegisteredMessage: 'No record was found for this device — no theft report and no registered purchase certificate. This does not necessarily mean the device is safe, only that it is not registered in the system. Verify the device\'s source carefully before buying.',
     existingCertificate: 'A purchase certificate was found for this device:',
     buyerName: 'Buyer Name',
     issueDate: 'Issue Date',

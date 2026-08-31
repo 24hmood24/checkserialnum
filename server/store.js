@@ -150,3 +150,34 @@ export function login(nationalId, password) {
 function filter_raw(table, query) {
     return readAll(table).filter((it) => matches(query, it));
 }
+
+// Bootstraps a built-in admin account on first run so the system always
+// has one, instead of relying on someone visiting /admin-seed by hand.
+// Only acts when NO admin exists yet — it will never touch an existing
+// admin account (e.g. one whose password was already changed).
+// Credentials come from env vars so they can be set for a real
+// deployment; falls back to the same demo credentials AdminSeed.jsx uses
+// so local/dev behavior is unchanged.
+export function ensureDefaultAdmin() {
+    const hasAdmin = readAll('app_users').some((u) => u.user_type === 'admin');
+    if (hasAdmin) return { created: false };
+
+    const nationalId = process.env.ADMIN_NATIONAL_ID || '1000000001';
+    const password = process.env.ADMIN_PASSWORD || 'adminpass';
+    const fullName = process.env.ADMIN_FULL_NAME || 'System Admin';
+
+    try {
+        const admin = create('app_users', {
+            national_id: nationalId,
+            full_name: fullName,
+            phone_number: process.env.ADMIN_PHONE || '0500000000',
+            user_type: 'admin',
+            password,
+        });
+        return { created: true, nationalId, password, id: admin.id };
+    } catch (err) {
+        // national_id already taken by a non-admin account — don't crash
+        // startup over it, just report that bootstrap didn't happen.
+        return { created: false, error: err.message };
+    }
+}
