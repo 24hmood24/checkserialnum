@@ -14,7 +14,7 @@ export default function AdminSeed() {
         await PurchaseCertificate.create({ certificateNumber: '0000000001', buyerId: '1000000002', buyerName: 'Demo User', deviceType: 'phone', serialNumber: 'abc123', issueDate: new Date().toISOString(), status: 'active' });
 
         // create demo stolen report
-        await StolenDevice.create({ serialNumber: 'stolen123', reporterNationalId: '1000000003', status: 'active', created_date: new Date().toISOString() });
+        await StolenDevice.create({ serialNumber: 'stolen123', deviceType: 'phone', reporterNationalId: '1000000003', status: 'active', created_date: new Date().toISOString(), theftDate: new Date().toISOString(), location: 'Riyadh' });
 
         setOutput('Seeded demo users, certificate and stolen report.');
     };

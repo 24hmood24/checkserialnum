@@ -124,9 +124,9 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         try {
             const identifier = normalizeNumbers(loginId);
             
-            const { data: user, error: loginError } = await loginUser({ 
-                identifier: identifier, 
-                password: loginPassword 
+            const { data: user, error: loginError } = await loginUser({
+                nationalId: identifier,
+                password: loginPassword
             });
 
             if (loginError) {
