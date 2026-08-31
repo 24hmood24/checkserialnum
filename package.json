@@ -7,13 +7,13 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "dev": "concurrently -k -n web,api -c blue,green \"vite\" \"node server/index.js\"",
+    "dev": "concurrently -k -n web,api -c blue,green \"vite\" \"node --experimental-sqlite server/index.js\"",
     "dev:web": "vite",
-    "dev:api": "node server/index.js",
+    "dev:api": "node --experimental-sqlite server/index.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node server/index.js"
+    "start": "node --experimental-sqlite server/index.js"
   },
   "dependencies": {
     "@base44/sdk": "^0.1.2",
