@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,green \"vite\" \"node server/index.js\"",
     "dev:web": "vite",

@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 22.11.0
     # NOTE: no persistent disk here — Render's free plan doesn't support
     # them. Without one, server/data.sqlite lives on ephemeral storage and
     # is WIPED on every deploy and whenever the free instance spins down
