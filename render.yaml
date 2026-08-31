@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: checkserialnum
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/checkserialnum.sqlite
+    disk:
+      name: checkserialnum-data
+      mountPath: /var/data
+      sizeGB: 1

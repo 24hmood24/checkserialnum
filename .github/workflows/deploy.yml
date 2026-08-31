@@ -1,12 +1,17 @@
-name: Build and publish to `docs/`
+name: Build and publish to `docs/` (GitHub Pages — obsolete)
 
+# Disabled: the app now needs a real Node.js server (see /server) and a
+# persistent database, which GitHub Pages can't provide — this workflow's
+# static-only docs/ build is no longer how this app is deployed. See the
+# "Deploying to checkserialnum.com" section in README.md for the current
+# instructions (Render, or any other Node-capable host). Left here,
+# manually triggerable only, instead of deleted, in case it's needed for
+# reference.
 permissions:
   contents: write
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: {}
 
 jobs:
   build-and-publish-docs:
