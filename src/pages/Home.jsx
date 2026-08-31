@@ -23,6 +23,7 @@ import { createStolenDeviceReport } from '@/api/functions';
 import { createPurchaseCertificate } from '@/api/functions';
 import { getAdminDashboardData } from '@/api/functions'; // NEW
 import { updateStolenDeviceReport } from '@/api/functions'; // NEW
+import { getNextCertificateNumber } from '@/api/functions';
 
 // Helper to normalize numbers - AND convert to lowercase for serials
 const normalizeSerial = (text) => {
@@ -88,18 +89,13 @@ const validateId = (id) => {
 
 // REMOVED: generateReportId function
 
-// Generate unique certificate number with sequential numbering
+// Generate unique certificate number with sequential numbering. Uses a
+// dedicated endpoint (rather than listing purchase_certificates) so this
+// public, no-login flow never pulls the previous buyer's full record
+// (name/national ID/phone) over the wire just to read one field off it.
 const generateCertificateNumber = async () => {
   try {
-    const latestCerts = await PurchaseCertificate.list('-certificateNumber', 1);
-
-    if (latestCerts && latestCerts.length > 0) {
-      const lastNumber = parseInt(latestCerts[0].certificateNumber, 10);
-      const newNumber = lastNumber + 1;
-      return String(newNumber).padStart(10, '0');
-    } else {
-      return '0000000001';
-    }
+    return await getNextCertificateNumber();
   } catch (error) {
     console.error("Failed to generate certificate number:", error);
     const timestamp = Date.now();

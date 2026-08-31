@@ -42,6 +42,9 @@ export async function registerUser(payload) {
 
 // Real login: password verification happens server-side (server/store.js),
 // this just relays the result. Never compare passwords in the browser.
+// The server also issues a signed session token, stored alongside the
+// user, that protected requests (admin dashboard, editing your own
+// profile, etc.) send back as Authorization: Bearer <token>.
 export async function loginUser({ nationalId, password }) {
     try {
         const res = await fetch('/api/auth/login', {
@@ -54,7 +57,7 @@ export async function loginUser({ nationalId, password }) {
             return { data: null, error: body.error || 'invalid_credentials', status: res.status };
         }
         const body = await res.json();
-        await User.setCurrent(body.data);
+        await User.setCurrent(body.data, body.token);
         return { data: body.data };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
@@ -88,14 +91,33 @@ export async function createPurchaseCertificate(payload) {
     }
 }
 
+// Admin-only: the server checks the session token belongs to an admin
+// (see server/index.js's requireAdmin) before returning the full
+// reports + certificates dataset.
 export async function getAdminDashboardData() {
     try {
-        const stolen = await StolenDevice.list('-created_date');
-        const certificates = await PurchaseCertificate.list('-created_date');
-        return { data: { stolenDevices: stolen, certificates } };
+        const token = localStorage.getItem('mock:session_token');
+        const res = await fetch('/api/admin/dashboard', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            return { data: null, error: body.error || `Request failed (${res.status})` };
+        }
+        const body = await res.json();
+        return { data: body.data };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
     }
+}
+
+// Next certificate number, without exposing the previous buyer's full
+// record (name/national ID/phone) the way listing purchase_certificates
+// directly would.
+export async function getNextCertificateNumber() {
+    const res = await fetch('/api/certificates/next-number');
+    const body = await res.json();
+    return body.data.certificateNumber;
 }
 
 // NOTE: this used to take (id, updates) positionally, but every call site
@@ -108,16 +130,6 @@ export async function updateStolenDeviceReport({ reportId, updates }) {
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
     }
-}
-
-// Debug helpers
-export async function debugUsers() {
-    const all = await AppUser.list();
-    return { data: all };
-}
-
-export async function repairMyAccount() {
-    return { data: null, error: 'not_supported' };
 }
 
 export async function validateResetRequest({ nationalId, phoneNumber }) {
@@ -136,10 +148,20 @@ export async function validateResetRequest({ nationalId, phoneNumber }) {
     }
 }
 
-export async function resetPassword({ userId, newPassword }) {
+// Real reset happens server-side in one atomic call (national ID + phone
+// re-checked there too) — see POST /api/auth/reset-password. This keeps
+// the UI's existing two-step flow (validate, then set new password) but
+// no longer trusts the client to have actually completed step one.
+export async function resetPassword({ nationalId, phoneNumber, newPassword }) {
     try {
-        const res = await AppUser.update(userId, { password: newPassword });
-        return { data: { success: !!res.data } };
+        const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nationalId, phoneNumber, newPassword }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { data: { success: false }, error: body.error || 'verification_failed' };
+        return { data: body.data };
     } catch (err) {
         return { data: null, error: err && err.message ? err.message : String(err) };
     }

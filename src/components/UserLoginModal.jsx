@@ -29,7 +29,6 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
     // Reset password form
     const [resetId, setResetId] = useState('');
     const [resetPhone, setResetPhone] = useState('');
-    const [userToResetId, setUserToResetId] = useState(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -91,7 +90,6 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         setRegisterConfirmPassword('');
         setResetId('');
         setResetPhone('');
-        setUserToResetId(null);
         setNewPassword('');
         setConfirmNewPassword('');
         setError('');
@@ -248,7 +246,6 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                 return;
             }
 
-            setUserToResetId(data.userId);
             setMode('set_new_password');
         } catch (err) {
             console.error("Validation reset request error:", err);
@@ -276,7 +273,11 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         }
 
         try {
-            const { data, error: resetError } = await resetPassword({ userId: userToResetId, newPassword });
+            const { data, error: resetError } = await resetPassword({
+                nationalId: normalizeNumbers(resetId),
+                phoneNumber: normalizeNumbers(resetPhone),
+                newPassword,
+            });
 
             if (resetError || !data.success) {
                 setError(t('resetPasswordError'));

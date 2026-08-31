@@ -20,3 +20,8 @@ services:
       # applied. Get this from Atlas: Cluster -> Connect -> Drivers.
       - key: MONGODB_URI
         sync: false
+      # Signs session tokens (login, admin checks). generateValue: true
+      # means Render creates a strong random value itself — nothing to
+      # provide.
+      - key: SESSION_SECRET
+        generateValue: true

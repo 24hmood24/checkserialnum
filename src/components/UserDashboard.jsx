@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import LocationSelector from './LocationSelector';
 import { createPurchaseCertificate } from '@/api/functions';
 import { createStolenDeviceReport } from '@/api/functions'; // Added for unified report ID generation
+import { getNextCertificateNumber } from '@/api/functions';
 
 const normalizeNumbers = (text) => {
   if (!text) return '';
@@ -36,19 +37,7 @@ const normalizeNumbers = (text) => {
 
 const generateCertificateNumber = async () => {
   try {
-    const latestCerts = await PurchaseCertificate.list('-certificateNumber', 1);
-
-    if (latestCerts && latestCerts.length > 0) {
-      const lastNumber = parseInt(latestCerts[0].certificateNumber, 10);
-      if (isNaN(lastNumber)) {
-        const timestamp = Date.now();
-        return timestamp.toString().slice(-10);
-      }
-      const newNumber = lastNumber + 1;
-      return String(newNumber).padStart(10, '0');
-    } else {
-      return '0000000001';
-    }
+    return await getNextCertificateNumber();
   } catch (error) {
     console.error("Failed to generate certificate number:", error);
     const timestamp = Date.now();

@@ -58,6 +58,20 @@ npm start
 and the built frontend from `dist/` — one process, one port. Set `PORT` to change the
 port (defaults to 3001).
 
+## Security
+
+- **`SESSION_SECRET`** — set this to a long random string in production. It signs the
+  session tokens issued on login; without it, the server falls back to an insecure
+  built-in default (logs a warning on startup) that anyone reading the source could
+  forge admin tokens with. Generate one with e.g. `openssl rand -hex 32`.
+- Admin-only actions (the full reports/certificates dashboard, listing every
+  registered user) and account actions (editing a profile, approving/rejecting a
+  theft-report closure) require a valid session token now — checked server-side, not
+  just hidden behind client-side UI. Checking a device, reporting theft, and buying a
+  device stay usable without an account, matching the app's existing public tabs.
+- There's no `/admin-seed` page anymore — the built-in admin bootstrap (below) is the
+  only way an admin account gets created.
+
 ## Default admin account
 
 The server checks on every boot whether any admin account exists in the database; if

@@ -166,11 +166,6 @@ export default function Layout({ children }) {
 
                 {/* Language toggle button */}
                 <div className="flex gap-2">
-                  {loggedInUser && userType === 'admin' && (
-                    <a href="/admin-seed" className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300">
-                      Admin
-                    </a>
-                  )}
                   <Button
                     onClick={handleLanguageChange}
                     variant="outline"
