@@ -45,10 +45,10 @@ A `render.yaml` blueprint is included, so most of this is automatic once you con
 your account:
 
 1. Sign up at [render.com](https://render.com) and connect your GitHub account.
-2. **New → Blueprint**, pick this repository — Render reads `render.yaml` and creates
-   the service automatically (build: `npm ci && npm run build`, start: `npm start`,
-   with a small persistent disk mounted at `/var/data` for the SQLite database so
-   data survives deploys and restarts).
+2. **New → Blueprint**, pick this repository (branch: whichever branch has this
+   `render.yaml` — merge it to `main` first if you'd rather deploy from there) —
+   Render reads `render.yaml` and creates the service automatically (build:
+   `npm ci && npm run build`, start: `npm start`).
 3. Once it's live, Render gives you a URL like `checkserialnum.onrender.com` —
    confirm the site works there first.
 4. In Render's dashboard → your service → **Settings → Custom Domains**, add
@@ -62,6 +62,32 @@ your account:
 Free-tier note: Render's free web services spin down after periods of inactivity and
 take a few seconds to wake back up on the next request — fine for a demo/low-traffic
 site, but worth knowing.
+
+#### ⚠️ Persistent storage on the free plan
+
+Render's **free** plan does not support persistent disks. Without one,
+`server/data.sqlite` lives on ephemeral storage — it gets **wiped every time the
+service redeploys, and whenever the free instance spins down from inactivity and
+restarts**. That means registered accounts, reports, and certificates can disappear
+on a free-plan deploy. Two ways to actually keep data long-term:
+
+- **Upgrade to a paid Render plan** (Starter or higher) and add a disk back to
+  `render.yaml`:
+  ```yaml
+  envVars:
+    - key: DB_PATH
+      value: /var/data/checkserialnum.sqlite
+  disk:
+    name: checkserialnum-data
+    mountPath: /var/data
+    sizeGB: 1
+  ```
+- **Move to a managed database** instead of the SQLite file (bigger change — would
+  need `server/db.js`/`server/store.js` rewritten against e.g. Render's managed
+  Postgres) — ask if you want this done.
+
+Until one of those is in place, treat a free-plan deployment as a demo, not the
+system of record.
 
 ### Other options
 

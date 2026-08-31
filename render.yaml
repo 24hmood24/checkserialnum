@@ -9,9 +9,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DB_PATH
-        value: /var/data/checkserialnum.sqlite
-    disk:
-      name: checkserialnum-data
-      mountPath: /var/data
-      sizeGB: 1
+    # NOTE: no persistent disk here — Render's free plan doesn't support
+    # them. Without one, server/data.sqlite lives on ephemeral storage and
+    # is WIPED on every deploy and whenever the free instance spins down
+    # from inactivity. See the "Persistent storage" section in README.md
+    # before relying on this for real data — upgrade to a paid plan and
+    # add a disk (see render.yaml git history), or move to a managed
+    # database, once that matters.
