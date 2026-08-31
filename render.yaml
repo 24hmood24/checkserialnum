@@ -3,7 +3,11 @@ services:
     name: checkserialnum
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # --include=dev: Render sets NODE_ENV=production for the build too,
+    # which makes `npm ci` skip devDependencies by default — but vite
+    # (and the rest of the build toolchain) live there. Without this
+    # flag the build fails with "sh: 1: vite: not found".
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
