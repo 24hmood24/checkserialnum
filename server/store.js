@@ -92,20 +92,42 @@ export async function get(table, id) {
     return sanitize(table, { ...doc, id: doc._id });
 }
 
-export async function create(table, payload) {
+// `trusted` is only ever passed by server-internal callers (currently just
+// ensureDefaultAdmin(), to create the bootstrap admin account) -- never by
+// an HTTP route handling a client request. It's what allows user_type to
+// be anything other than 'regular'.
+export async function create(table, payload, { trusted = false } = {}) {
     assertTable(table);
     const id = String(Date.now()) + Math.random().toString(36).slice(2, 8);
     const record = { ...payload, id, _id: id };
-    if (!record.created_date) record.created_date = new Date().toISOString();
+    // created_date and id/_id are always server-assigned -- never trust a
+    // client-supplied value for them.
+    record.created_date = new Date().toISOString();
 
     if (table === 'app_users') {
+        // This is the only public account-creation path (self-registration
+        // from the "create account" form, no login required). Every field
+        // that controls trust must be server-assigned here, never taken
+        // from the request body as-is:
+        // - user_type: 'regular' unless this is a trusted internal call.
+        //   Without this, POSTing { user_type: 'admin', ... } directly to
+        //   the API would grant admin access instantly -- self-registration
+        //   must never be able to create an admin.
+        // - password_hash/password_salt: always derived from `password`
+        //   here, never accepted verbatim -- otherwise a client could seed
+        //   an account with a hash/salt pair it already knows the
+        //   plaintext for, bypassing hashPassword() entirely (not a
+        //   privilege issue for a brand-new account, but there's no reason
+        //   to accept attacker-controlled hash material at all).
+        record.user_type = trusted ? (record.user_type || 'regular') : 'regular';
+        delete record.password_hash;
+        delete record.password_salt;
         if (record.password) {
             const { password_hash, password_salt } = hashPassword(record.password);
             record.password_hash = password_hash;
             record.password_salt = password_salt;
             delete record.password;
         }
-        if (!record.user_type) record.user_type = 'regular';
     }
 
     if (table === 'stolen_devices' && !record.reportId) {
@@ -125,7 +147,14 @@ export async function create(table, payload) {
     return sanitize(table, record);
 }
 
-export async function update(table, id, updates) {
+// `trusted` -- like in create() -- is only ever passed by server-internal
+// callers (ensureDefaultAdmin() replacing the factory-default admin's
+// credentials) or by a route handler after it has already confirmed the
+// caller is an admin. Everywhere else, user_type/national_id must never be
+// settable through this generic update, or a logged-in regular user could
+// PATCH their own account into an admin (or take over another national ID)
+// simply by including those fields in the request body.
+export async function update(table, id, updates, { trusted = false } = {}) {
     assertTable(table);
     const current = await db.collection(table).findOne({ _id: id });
     if (!current) {
@@ -136,6 +165,13 @@ export async function update(table, id, updates) {
     const patch = { ...updates };
 
     if (table === 'app_users') {
+        if (!trusted) {
+            delete patch.user_type;
+            delete patch.national_id;
+            delete patch.id;
+            delete patch._id;
+            delete patch.created_date;
+        }
         // Password change requires proving the current password first.
         if (patch.new_password) {
             const ok = verifyPassword(patch.current_password, current.password_hash, current.password_salt);
@@ -207,7 +243,7 @@ export async function ensureDefaultAdmin() {
                 phone_number: phone,
                 user_type: 'admin',
                 password,
-            });
+            }, { trusted: true });
             return { created: true, nationalId, password, id: admin.id };
         } catch (err) {
             // national_id already taken by a non-admin account — don't
@@ -224,7 +260,7 @@ export async function ensureDefaultAdmin() {
                 full_name: fullName,
                 phone_number: phone,
                 password,
-            });
+            }, { trusted: true });
             return { replaced: true, nationalId, password, id: factoryDefault.id };
         } catch (err) {
             return { created: false, error: err.message };

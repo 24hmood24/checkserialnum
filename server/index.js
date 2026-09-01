@@ -11,8 +11,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, '..', 'dist');
 
 const app = express();
+// Render (and most hosts) put this behind a reverse proxy -- without this,
+// req.ip resolves to the proxy's own address for every request, which
+// would make the per-IP rate limiter below apply to all visitors combined
+// instead of each one individually.
+app.set('trust proxy', 1);
 app.use(cors());
-app.use(express.json());
+// A request body has no legitimate reason to be large here (the biggest
+// thing this API accepts is a certificate/report form) -- capping it
+// blocks a trivial memory-exhaustion request before it reaches any route.
+app.use(express.json({ limit: '200kb' }));
+
+// A few basic hardening headers. No templated HTML is ever rendered from
+// user input here (React does its own escaping, and the API only ever
+// returns JSON) so this is defense in depth, not a fix for a known gap.
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
 
 const asyncRoute = (fn) => async (req, res) => {
     try {
@@ -21,6 +39,44 @@ const asyncRoute = (fn) => async (req, res) => {
         res.status(err.status || 500).json({ error: err.message || 'Server error' });
     }
 };
+
+// --- Rate limiting -----------------------------------------------------
+// Hand-rolled, in-memory, per-IP sliding window -- no extra dependency,
+// and fine for a single free-tier instance (no shared store needed).
+// Protects the endpoints that matter most against brute force: guessing
+// an admin/user password, or hammering the "forgot password" phone-number
+// check to enumerate accounts. A restart clears all counters, which is an
+// acceptable trade-off here (Render free tier redeploys/restarts already
+// happen for other reasons).
+const rateLimitHits = new Map(); // key -> array of timestamps (ms)
+
+function rateLimit({ windowMs, max }) {
+    return (req, res, next) => {
+        const key = `${req.ip}:${req.path}`;
+        const now = Date.now();
+        const hits = (rateLimitHits.get(key) || []).filter((t) => now - t < windowMs);
+        if (hits.length >= max) {
+            return res.status(429).json({ error: 'Too many attempts, please try again later' });
+        }
+        hits.push(now);
+        rateLimitHits.set(key, hits);
+        next();
+    };
+}
+
+// Occasionally sweep old entries so this map can't grow unbounded across
+// many distinct IPs/paths over a long-running process.
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, hits] of rateLimitHits) {
+        const fresh = hits.filter((t) => now - t < 15 * 60 * 1000);
+        if (fresh.length === 0) rateLimitHits.delete(key);
+        else rateLimitHits.set(key, fresh);
+    }
+}, 5 * 60 * 1000).unref();
+
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }); // 10 tries / 15 min / IP
+const resetPasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 // --- Auth middleware -------------------------------------------------
 // authenticate: requires *some* logged-in user (any role).
@@ -70,8 +126,29 @@ app.get('/api/entities/app_users', requireAdmin, asyncRoute(async (req, res) => 
     res.json({ data: await store.list('app_users', sort, limit ? Number(limit) : undefined) });
 }));
 
+// A regular user editing their own profile may only touch their own name/
+// phone/password -- never user_type or national_id (store.update() also
+// refuses those unless called with {trusted: true}, so this is defense in
+// depth, not the only thing stopping a self-promote-to-admin attempt).
+const SELF_SERVICE_PROFILE_KEYS = new Set(['full_name', 'phone_number', 'current_password', 'new_password']);
+
 app.patch('/api/entities/app_users/:id', requireSelfOrAdmin('id'), asyncRoute(async (req, res) => {
-    res.json({ data: await store.update('app_users', req.params.id, req.body || {}) });
+    const body = req.body || {};
+    const isAdmin = req.auth.user_type === 'admin';
+    if (!isAdmin) {
+        const onlyAllowedKeys = Object.keys(body).every((k) => SELF_SERVICE_PROFILE_KEYS.has(k));
+        if (!onlyAllowedKeys) {
+            return res.status(403).json({ error: 'Only admins can change that field' });
+        }
+    }
+    res.json({ data: await store.update('app_users', req.params.id, body, { trusted: isAdmin }) });
+}));
+
+// Reading a single user's full record (name/national ID/phone) is the
+// same PII exposure as the admin-only list above -- must not be reachable
+// by an unauthenticated request just because it knows/guesses an id.
+app.get('/api/entities/app_users/:id', requireSelfOrAdmin('id'), asyncRoute(async (req, res) => {
+    res.json({ data: await store.get('app_users', req.params.id) });
 }));
 
 const SELF_SERVICE_CLOSURE_KEYS = new Set(['status', 'closureRequestReason', 'closureRequestDetails']);
@@ -87,6 +164,26 @@ app.patch('/api/entities/stolen_devices/:id', authenticate, asyncRoute(async (re
         }
     }
     res.json({ data: await store.update('stolen_devices', req.params.id, body) });
+}));
+
+// Certificates are meant to be updatable without an account (the public
+// buy-device and report-theft flows mark one 'transferred' or 'stolen' as
+// part of their own no-login process) -- but the generic, unauthenticated
+// PATCH /api/entities/:table/:id below would otherwise let anyone rewrite
+// ANY field on ANY certificate with no check at all: forge a different
+// buyerId onto an existing ownership record, change the price, swap the
+// serial number, etc. This route stands in front of that generic one and
+// only ever allows a status transition to one of these three values --
+// never a change to who owns what.
+const ALLOWED_CERTIFICATE_STATUSES = new Set(['active', 'transferred', 'stolen']);
+
+app.patch('/api/entities/purchase_certificates/:id', asyncRoute(async (req, res) => {
+    const body = req.body || {};
+    const keys = Object.keys(body);
+    if (keys.length !== 1 || keys[0] !== 'status' || !ALLOWED_CERTIFICATE_STATUSES.has(body.status)) {
+        return res.status(403).json({ error: 'Only a status update (active/transferred/stolen) is allowed here' });
+    }
+    res.json({ data: await store.update('purchase_certificates', req.params.id, body) });
 }));
 
 // Public: certificate-number generation needs only the next number, not
@@ -116,6 +213,25 @@ app.get('/api/entities/:table', asyncRoute(async (req, res) => {
 
 app.post('/api/entities/:table/filter', asyncRoute(async (req, res) => {
     const { query, sort } = req.body || {};
+
+    // app_users is the one table this generic, unauthenticated filter must
+    // never expose wholesale -- store.filter()'s substring matching means
+    // { national_id: "1" } (or {} entirely) would otherwise return
+    // name/phone for every user whose id contains a "1", or literally
+    // everyone. The public flows that legitimately need this (does this
+    // buyer/seller have an account?) only ever look up one exact,
+    // fully-typed national ID, so that's the only shape allowed through.
+    if (req.params.table === 'app_users') {
+        const keys = Object.keys(query || {});
+        const nationalId = query && query.national_id;
+        if (keys.length !== 1 || keys[0] !== 'national_id' || !nationalId || String(nationalId).length < 10) {
+            return res.status(400).json({ error: 'Only a full national_id lookup is allowed here' });
+        }
+        const users = await store.filter('app_users', { national_id: nationalId });
+        const exact = users.filter((u) => String(u.national_id) === String(nationalId));
+        return res.json({ data: exact });
+    }
+
     res.json({ data: await store.filter(req.params.table, query, sort) });
 }));
 
@@ -136,7 +252,7 @@ app.patch('/api/entities/:table/:id', asyncRoute(async (req, res) => {
 // server, never by shipping a hash to the client for comparison. Issues
 // a signed session token the client must send back as
 // `Authorization: Bearer <token>` for the protected routes above.
-app.post('/api/auth/login', asyncRoute(async (req, res) => {
+app.post('/api/auth/login', loginLimiter, asyncRoute(async (req, res) => {
     const { nationalId, password } = req.body || {};
     const user = await store.login(nationalId, password);
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
@@ -150,7 +266,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
 // (the "verify" step was a separate, skippable client-side call). This
 // verifies national ID + phone together, in one step, before touching
 // anything.
-app.post('/api/auth/reset-password', asyncRoute(async (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, asyncRoute(async (req, res) => {
     const { nationalId, phoneNumber, newPassword } = req.body || {};
     const users = await store.filter('app_users', { national_id: nationalId });
     const user = users.find((u) => String(u.national_id) === String(nationalId));
