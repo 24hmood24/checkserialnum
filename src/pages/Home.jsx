@@ -370,6 +370,9 @@ export default function HomePage() {
 }
 
 // NEW: Helper function to mask ID numbers
+// Note: the caller is responsible for HTML-escaping this before it's ever
+// interpolated into a document.write()'d string -- this function only
+// masks, it doesn't know the output context.
 const maskIdNumber = (id) => {
   if (!id || typeof id !== 'string' || id.length < 5) {
     return id; // Return as is if it's not a long enough string
@@ -383,8 +386,19 @@ const maskIdNumber = (id) => {
 const printCertificateHtml = (certificate, t, userType) => {
   const isAdmin = userType === 'admin';
 
-  // Helper to safely display data, replacing null/undefined with '-'
-  const display = (value) => value || '-';
+  // Helper to safely display data, replacing null/undefined with '-' and
+  // HTML-escaping it -- this string gets interpolated straight into
+  // document.write() below, and every one of these fields (buyer/seller
+  // name, phone, device type, ...) ultimately comes from a certificate
+  // record created through an unauthenticated, unvalidated API call (by
+  // design -- buying/reporting a device doesn't require an account). An
+  // attacker could otherwise plant a <script> payload in e.g. buyerName
+  // via a direct API call and have it execute in the print window of
+  // anyone (including an admin) who later prints that certificate.
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+  const display = (value) => escapeHtml(value || '-');
 
   const idTypeTranslations = {
     national_id: t('idNational'),
@@ -622,7 +636,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                     <div class="info-grid">
                         <div class="info-item" style="grid-column: span 2;">
                             <div class="info-label">${t('buyerName')}</div>
-                            <div class="info-value">${display(certificate.buyerName)}${certificate.buyerNameAtSale ? ` / ${certificate.buyerNameAtSale}` : ''}</div>
+                            <div class="info-value">${display(certificate.buyerName)}${certificate.buyerNameAtSale ? ` / ${escapeHtml(certificate.buyerNameAtSale)}` : ''}</div>
                         </div>
                          <div class="info-item">
                             <div class="info-label">${t('idType')}</div>
@@ -630,7 +644,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                         </div>
                         <div class="info-item">
                             <div class="info-label">${t('idNumber')}</div>
-                            <div class="info-value">${isAdmin ? display(certificate.buyerId) : maskIdNumber(certificate.buyerId)}</div>
+                            <div class="info-value">${isAdmin ? display(certificate.buyerId) : escapeHtml(maskIdNumber(certificate.buyerId))}</div>
                         </div>
                     </div>
 
@@ -642,7 +656,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                         </div>
                         <div class="info-item">
                             <div class="info-label">${t('idNumber')}</div>
-                            <div class="info-value">${isAdmin ? display(certificate.sellerNationalId) : maskIdNumber(certificate.sellerNationalId)}</div>
+                            <div class="info-value">${isAdmin ? display(certificate.sellerNationalId) : escapeHtml(maskIdNumber(certificate.sellerNationalId))}</div>
                         </div>
                         <div class="info-item" style="grid-column: span 2;">
                             <div class="info-label">${t('phoneNumber')}</div>

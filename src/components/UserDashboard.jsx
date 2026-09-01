@@ -182,6 +182,17 @@ const ClosureRequestForm = ({ report, onSubmitted, onCancel, setNotification, t 
 const printCertificateHtml = (certificate, t, userType) => {
   const isAdmin = userType === 'admin';
 
+  // This gets interpolated straight into document.write() below. Every
+  // one of these certificate fields ultimately comes from an
+  // unauthenticated, unvalidated create call (buying/reporting a device
+  // doesn't require an account, by design) -- without escaping, a
+  // <script> planted in e.g. buyerName via a direct API call would run in
+  // the print window of anyone who later prints that certificate.
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+  const display = (value) => escapeHtml(value || '-');
+
   const maskIdNumber = (id) => {
     if (!id || typeof id !== 'string' || id.length < 5) return id;
     return `${id.slice(0, 2)}******${id.slice(-2)}`;
@@ -214,7 +225,7 @@ const printCertificateHtml = (certificate, t, userType) => {
             <html dir="${t('dir')}" lang="${t('lang')}">
             <head>
                 <meta charset="UTF-8">
-                <title>${t('certificateOfPurchase')} - ${t('certificateNumber')} ${certificate.certificateNumber}</title>
+                <title>${t('certificateOfPurchase')} - ${t('certificateNumber')} ${display(certificate.certificateNumber)}</title>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
                     
@@ -399,7 +410,7 @@ const printCertificateHtml = (certificate, t, userType) => {
 
                     <main>
                         <div class="cert-number">
-                            ${t('certificateNumber')}: ${certificate.certificateNumber}
+                            ${t('certificateNumber')}: ${display(certificate.certificateNumber)}
                         </div>
                         <div class="confirmation-box">
                             ✅ ${t('certificateDisclaimer')}
@@ -409,15 +420,15 @@ const printCertificateHtml = (certificate, t, userType) => {
                         <div class="info-grid">
                             <div class="info-item">
                                 <div class="info-label">${t('serialNumberLabel')}</div>
-                                <div class="info-value">${certificate.serialNumber}</div>
+                                <div class="info-value">${display(certificate.serialNumber)}</div>
                             </div>
                             <div class="info-item">
                                 <div class="info-label">${t('deviceType')}</div>
-                                <div class="info-value">${deviceTranslations[certificate.deviceType] || certificate.deviceType}</div>
+                                <div class="info-value">${deviceTranslations[certificate.deviceType] || display(certificate.deviceType)}</div>
                             </div>
                             <div class="info-item">
                                 <div class="info-label">${t('purchasePrice')}</div>
-                                <div class="info-value">${certificate.purchasePrice ? certificate.purchasePrice + ' ' + t('currency') : '-'}</div>
+                                <div class="info-value">${certificate.purchasePrice ? escapeHtml(certificate.purchasePrice) + ' ' + t('currency') : '-'}</div>
                             </div>
                             <div class="info-item">
                                 <div class="info-label">${t('issueDate')}</div>
@@ -429,15 +440,15 @@ const printCertificateHtml = (certificate, t, userType) => {
                         <div class="info-grid">
                             <div class="info-item">
                                 <div class="info-label">${t('buyerName')}</div>
-                                <div class="info-value">${certificate.buyerName}</div>
+                                <div class="info-value">${display(certificate.buyerName)}</div>
                             </div>
                              <div class="info-item">
                                 <div class="info-label">${t('idType')}</div>
-                                <div class="info-value">${idTypeTranslations[certificate.buyerIdType] || certificate.buyerIdType}</div>
+                                <div class="info-value">${idTypeTranslations[certificate.buyerIdType] || display(certificate.buyerIdType)}</div>
                             </div>
                             <div class="info-item" style="grid-column: span 2;">
                                 <div class="info-label">${t('idNumber')}</div>
-                                <div class="info-value">${isAdmin ? certificate.buyerId : maskIdNumber(certificate.buyerId)}</div>
+                                <div class="info-value">${isAdmin ? display(certificate.buyerId) : escapeHtml(maskIdNumber(certificate.buyerId))}</div>
                             </div>
                         </div>
 
@@ -445,15 +456,15 @@ const printCertificateHtml = (certificate, t, userType) => {
                         <div class="info-grid">
                             <div class="info-item">
                                 <div class="info-label">${t('idType')}</div>
-                                <div class="info-value">${certificate.sellerIdType ? idTypeTranslations[certificate.sellerIdType] || certificate.sellerIdType : '-'}</div>
+                                <div class="info-value">${certificate.sellerIdType ? idTypeTranslations[certificate.sellerIdType] || display(certificate.sellerIdType) : '-'}</div>
                             </div>
                             <div class="info-item">
                                 <div class="info-label">${t('idNumber')}</div>
-                                <div class="info-value">${isAdmin ? certificate.sellerNationalId : maskIdNumber(certificate.sellerNationalId)}</div>
+                                <div class="info-value">${isAdmin ? display(certificate.sellerNationalId) : escapeHtml(maskIdNumber(certificate.sellerNationalId))}</div>
                             </div>
                             <div class="info-item" style="grid-column: span 2;">
                                 <div class="info-label">${t('phoneNumber')}</div>
-                                <div class="info-value">${certificate.sellerPhone || '-'}</div>
+                                <div class="info-value">${display(certificate.sellerPhone)}</div>
                             </div>
                         </div>
                     </main>

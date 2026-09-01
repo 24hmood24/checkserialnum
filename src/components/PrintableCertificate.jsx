@@ -30,13 +30,25 @@ export default function PrintableCertificate({ certificate, t, showPrintButton =
         const printContent = document.getElementById('certificate-print-area').innerHTML;
         const printWindow = window.open('', '_blank');
 
+        // Everything inside printContent came from React-rendered text
+        // nodes above, so reading it back via .innerHTML is already
+        // HTML-safe (React escaped it on the way in). certificateNumber
+        // here is not -- it's interpolated raw into a <title> tag, whose
+        // content HTML parses as raw text until the next literal
+        // "</title>", so a crafted value (this certificate record can be
+        // forged via a direct, unauthenticated API call) could close the
+        // tag early and inject a script. Escape it the same way.
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+
         printWindow.document.write(`
             <!DOCTYPE html>
             <html dir="rtl" lang="ar">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>شهادة فحص الجهاز الإلكتروني - رقم ${certificate.certificateNumber}</title>
+                <title>شهادة فحص الجهاز الإلكتروني - رقم ${escapeHtml(certificate.certificateNumber)}</title>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap');
                     * { margin: 0; padding: 0; box-sizing: border-box; }
