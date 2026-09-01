@@ -1609,27 +1609,58 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
     try {
       await updateStolenDeviceReport({ reportId: report.id, updates: { status: 'closed' } });
 
-      // The device itself was already reported "found" -- when the theft
-      // report was first filed, its purchase certificate got flipped to
-      // status: 'stolen' (see ReportTheftTab), which is also what drops it
-      // out of the owner's "my devices" list (UserDashboard only lists
-      // certificates with status: 'active'). Closing the report as
-      // resolved never reversed that, so a found device stayed invisible
-      // to its own owner forever even after the case was closed. Reactivate
-      // the same certificate -- same number, same buyer/seller/device
-      // info, nothing regenerated -- so it reappears exactly as it was
-      // before the report.
-      if (report.closureRequestReason === 'device_found' && report.serialNumber) {
+      // Any closed report means the device is no longer actively
+      // considered stolen -- it should show back up in the reporter's
+      // "my devices" list right away, with a certificate (UserDashboard
+      // only lists certificates with status: 'active'). Two cases:
+      if (report.serialNumber && report.reporterNationalId) {
         try {
-          const certs = await PurchaseCertificate.filter({ serialNumber: report.serialNumber, status: 'stolen' });
-          const latest = certs && certs.length > 0
-            ? [...certs].sort((a, b) => (a.created_date < b.created_date ? 1 : -1))[0]
+          // 1) The device already had a purchase certificate before the
+          //    report -- filing the report flipped it to status: 'stolen'
+          //    (see ReportTheftTab). Reactivate that exact same
+          //    certificate (same number/buyer/seller/price/date, nothing
+          //    regenerated) instead of creating a new one.
+          const candidates = await PurchaseCertificate.filter({ serialNumber: report.serialNumber, status: 'stolen' });
+          const owned = (candidates || []).filter((c) =>
+            c.serialNumber === report.serialNumber && c.buyerId === report.reporterNationalId
+          );
+          const latest = owned.length > 0
+            ? [...owned].sort((a, b) => (a.created_date < b.created_date ? 1 : -1))[0]
             : null;
+
           if (latest) {
             await PurchaseCertificate.update(latest.id, { status: 'active' });
+          } else {
+            // 2) No prior certificate exists for this device at all (it
+            //    was reported without ever being registered through a
+            //    "buy device" transaction). There's nothing to reactivate,
+            //    but the device still needs to show up for its owner --
+            //    so issue a certificate from whatever the report itself
+            //    recorded. Seller details are unknown here (this was never
+            //    a tracked sale), so the reporter is recorded as both
+            //    buyer and seller -- an admin can correct these details
+            //    later if the real purchase info ever surfaces.
+            const { data: ownerData } = await findUserByNationalId({ nationalId: report.reporterNationalId });
+            const ownerName = ownerData?.user?.full_name || report.reporterNationalId;
+            const newCertificateNumber = await generateCertificateNumber();
+            await createPurchaseCertificate({
+              certificateNumber: newCertificateNumber,
+              buyerIdType: report.reporterIdType,
+              buyerId: report.reporterNationalId,
+              buyerName: ownerName,
+              buyerNameAtSale: ownerName,
+              sellerIdType: report.reporterIdType,
+              sellerNationalId: report.reporterNationalId,
+              sellerPhone: report.reporterPhone || '',
+              deviceType: report.deviceType,
+              serialNumber: report.serialNumber,
+              purchasePrice: 0,
+              issueDate: new Date().toISOString().split('T')[0],
+              status: 'active'
+            });
           }
         } catch (certError) {
-          console.error("Failed to reactivate certificate after closure:", certError);
+          console.error("Failed to restore certificate after closure:", certError);
         }
       }
 
