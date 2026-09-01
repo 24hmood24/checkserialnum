@@ -81,7 +81,7 @@ const detectIdType = (idNumber) => {
   const firstDigit = String(idNumber).charAt(0);
   if (firstDigit === '1') return 'national_id';
   if (firstDigit === '2') return 'resident_id';
-  if (firstDigit === '7') return 'commercial_reg';
+  if (firstDigit === '3' || firstDigit === '7') return 'commercial_reg';
   return null;
 };
 
@@ -1258,30 +1258,36 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       }
       const buyerUser = buyerExists ? buyerCheckResponse.data.user : null;
 
-      const { data: sellerCheckResponse } = await findUserByNationalId({ nationalId: formData.sellerId });
+      // A commercial-registration seller (a store) doesn't need an
+      // account either -- the phone number typed on the form is taken
+      // as-is (there's no registered account to check it against).
+      let sellerUser = null;
+      if (!sellerIsCommercial) {
+        const { data: sellerCheckResponse } = await findUserByNationalId({ nationalId: formData.sellerId });
 
-      if (!sellerCheckResponse?.exists || !sellerCheckResponse?.data?.user) {
-        setNotification({
-          isOpen: true,
-          title: t('certificateErrorTitle'),
-          content: <p>{t('sellerNotFound')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
-      }
-      const sellerUser = sellerCheckResponse.data.user;
+        if (!sellerCheckResponse?.exists || !sellerCheckResponse?.data?.user) {
+          setNotification({
+            isOpen: true,
+            title: t('certificateErrorTitle'),
+            content: <p>{t('sellerNotFound')}</p>,
+            status: 'danger'
+          });
+          setLoading(false);
+          return;
+        }
+        sellerUser = sellerCheckResponse.data.user;
 
-      // NEW: Verify seller's phone number matches what's registered
-      if (sellerUser.phone_number !== formData.sellerPhone) {
-        setNotification({
-          isOpen: true,
-          title: t('validationErrorTitle'),
-          content: <p>{t('sellerPhoneIncorrect')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
+        // NEW: Verify seller's phone number matches what's registered
+        if (sellerUser.phone_number !== formData.sellerPhone) {
+          setNotification({
+            isOpen: true,
+            title: t('validationErrorTitle'),
+            content: <p>{t('sellerPhoneIncorrect')}</p>,
+            status: 'danger'
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       // Backend `checkDevice` will handle plaintext ID comparison

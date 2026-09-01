@@ -50,7 +50,7 @@ const detectIdType = (idNumber) => {
   const firstDigit = idNumber.charAt(0);
   if (firstDigit === '1') return 'national_id';
   if (firstDigit === '2') return 'resident_id';
-  if (firstDigit === '7') return 'commercial_reg';
+  if (firstDigit === '3' || firstDigit === '7') return 'commercial_reg';
   return null;
 };
 
