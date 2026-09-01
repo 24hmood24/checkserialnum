@@ -1608,6 +1608,31 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
   const handleApproveClosure = async (report) => {
     try {
       await updateStolenDeviceReport({ reportId: report.id, updates: { status: 'closed' } });
+
+      // The device itself was already reported "found" -- when the theft
+      // report was first filed, its purchase certificate got flipped to
+      // status: 'stolen' (see ReportTheftTab), which is also what drops it
+      // out of the owner's "my devices" list (UserDashboard only lists
+      // certificates with status: 'active'). Closing the report as
+      // resolved never reversed that, so a found device stayed invisible
+      // to its own owner forever even after the case was closed. Reactivate
+      // the same certificate -- same number, same buyer/seller/device
+      // info, nothing regenerated -- so it reappears exactly as it was
+      // before the report.
+      if (report.closureRequestReason === 'device_found' && report.serialNumber) {
+        try {
+          const certs = await PurchaseCertificate.filter({ serialNumber: report.serialNumber, status: 'stolen' });
+          const latest = certs && certs.length > 0
+            ? [...certs].sort((a, b) => (a.created_date < b.created_date ? 1 : -1))[0]
+            : null;
+          if (latest) {
+            await PurchaseCertificate.update(latest.id, { status: 'active' });
+          }
+        } catch (certError) {
+          console.error("Failed to reactivate certificate after closure:", certError);
+        }
+      }
+
       fetchAdminData();
       setEditingReport(null); // Close the edit view
     } catch (error) {
