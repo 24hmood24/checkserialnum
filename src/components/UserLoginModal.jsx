@@ -10,7 +10,7 @@ import { loginUser } from '@/api/functions';
 import { validateResetRequest } from '@/api/functions';
 import { resetPassword } from '@/api/functions';
 
-export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode = 'login', onClose }) {
+export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode = 'login', onClose, lang = 'ar' }) {
     const [mode, setMode] = useState('login'); // 'login', 'register', 'reset', 'set_new_password'
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -635,7 +635,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-md" dir="rtl">
+                        <DialogContent className="sm:max-w-md" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
                 <DialogHeader>
                     <DialogTitle className="text-center text-xl font-bold flex items-center justify-center">
                         <UserCog className="w-6 h-6 ml-2 text-blue-600" />

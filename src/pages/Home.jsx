@@ -336,18 +336,20 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
       </AnimatePresence>
 
       {/* User Login Modal - Updated */}
-      <UserLoginModal
+            <UserLoginModal
         isOpen={showUserLogin}
         onClose={() => setShowUserLogin(false)}
         onLoginSuccess={handleUserLoginSuccess}
         t={t}
+        lang={lang}
       />
 
-      <NotificationModal
+            <NotificationModal
         isOpen={notification.isOpen}
         onClose={() => setNotification({ ...notification, isOpen: false })}
         title={notification.title}
-        status={notification.status}>
+        status={notification.status}
+        lang={lang}>
 
         {notification.content}
       </NotificationModal>

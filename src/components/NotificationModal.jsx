@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
-export default function NotificationModal({ isOpen, onClose, title, children, status = 'default' }) {
+export default function NotificationModal({ isOpen, onClose, title, children, status = 'default', lang = 'ar' }) {
   const statusClasses = {
     success: 'from-green-500 to-emerald-600',
     danger: 'from-red-500 to-rose-600',
@@ -14,16 +14,16 @@ export default function NotificationModal({ isOpen, onClose, title, children, st
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="p-0 border-none max-w-lg" dir="rtl">
+      <DialogContent className="p-0 border-none max-w-lg" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
           <DialogHeader className={`p-6 text-white rounded-t-lg bg-gradient-to-br ${statusClasses[status]}`}>
             <DialogTitle className="text-center text-2xl font-bold">{title}</DialogTitle>
           </DialogHeader>
-          <div className="p-6 md:p-8 text-right">
+          <div className={`p-6 md:p-8 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
             {children}
           </div>
           <DialogFooter className="p-4 bg-gray-50 border-t">
-            <Button onClick={onClose} variant="outline">Close</Button>
+            <Button onClick={onClose} variant="outline">{lang === 'ar' ? 'إغلاق' : 'Close'}</Button>
           </DialogFooter>
         </motion.div>
       </DialogContent>

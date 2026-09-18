@@ -40,10 +40,16 @@ export async function registerUser(payload) {
     }
 }
 
-export async function loginUser({ nationalId, password }) {
+export async function loginUser({ identifier, password }) {
     try {
-        const users = await AppUser.filter({ national_id: nationalId });
-        const user = users && users[0];
+        const id = String(identifier || '').trim();
+        if (!id) return { data: null, error: 'not_found', status: 404 };
+
+        const allUsers = await AppUser.list();
+        const user = allUsers.find(
+            (u) => String(u.national_id || '') === id || String(u.phone_number || '') === id
+        );
+
         if (!user) return { data: null, error: 'not_found', status: 404 };
         // Very small mock check: if password field exists and matches
         if (user.password && password && String(user.password) === String(password)) {

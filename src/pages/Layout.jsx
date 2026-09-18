@@ -7,9 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import Home from '@/pages/Home';
 import UserLoginModal from '@/components/UserLoginModal';
+import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
 
 export default function Layout({ children }) {
-  const [showUserLogin, setShowUserLogin] = useState(false);
+    const [showUserLogin, setShowUserLogin] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [userType, setUserType] = useState(null);
   const [lang, setLang] = useState('ar'); // Add language state
@@ -172,7 +174,13 @@ export default function Layout({ children }) {
               </div>
             </div>
           </div>
-        </header>
+          </header>
+
+        <div className="bg-amber-100 border-b-2 border-amber-400 text-amber-900 text-center py-2 px-3 text-xs sm:text-sm font-semibold">
+          {lang === 'ar'
+            ? '⚠️ هذا مشروع تجريبي/تعليمي مستقل، وغير تابع رسميًا لوزارة الداخلية أو الأمن العام.'
+            : '⚠️ This is an independent educational/demo project and is not an official service of the Ministry of Interior or Public Security.'}
+        </div>
 
         <main className="flex-grow">
           {pageWithProps}
@@ -186,14 +194,32 @@ export default function Layout({ children }) {
                 `Public Security - Kingdom of Saudi Arabia ${new Date().getFullYear()}`
               }
             </p>
-            <p className="text-gray-300 text-xs sm:text-sm">
+                        <p className="text-gray-300 text-xs sm:text-sm">
               {lang === 'ar' ?
-                'جميع الحقوق محفوظة | للاستفسارات: 911' :
-                'All Rights Reserved | For inquiries: 911'
+                'جميع الحقوق محفوظة | للاستفسارات: 000' :
+                'All Rights Reserved | For inquiries: 000'
               }
             </p>
+                        <p className="text-gray-400 text-[10px] sm:text-xs mt-1">
+              {lang === 'ar' ?
+                'مشروع تجريبي مستقل لأغراض تعليمية — غير رسمي' :
+                'Independent demo project for educational purposes — unofficial'
+              }
+            </p>
+            <button
+              onClick={() => setShowPrivacyPolicy(true)}
+              className="text-gray-300 hover:text-white text-xs sm:text-sm underline mt-2"
+            >
+              {lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}
+            </button>
           </div>
         </footer>
+
+        <PrivacyPolicyModal
+          isOpen={showPrivacyPolicy}
+          onClose={() => setShowPrivacyPolicy(false)}
+          lang={lang}
+        />
       </div>
     </>);
 
