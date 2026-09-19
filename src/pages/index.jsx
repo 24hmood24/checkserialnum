@@ -36,7 +36,6 @@ function PagesContent() {
 
 
                 <Route path="/Home" element={<Home />} />
-                <Route path="/admin-seed" element={React.createElement(require('./AdminSeed').default)} />
 
             </Routes>
         </Layout>

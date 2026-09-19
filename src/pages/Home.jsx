@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { AppContext } from './Layout.jsx';
 import { StolenDevice } from '@/api/entities';
 import { PurchaseCertificate } from '@/api/entities';
 import { User } from '@/api/entities';
@@ -18,12 +19,16 @@ import { checkDevice } from '@/api/functions';
 import { findUserByNationalId } from '@/api/functions';
 import LocationSelector from '../components/LocationSelector';
 import UserProfileTab from '../components/UserProfileTab';
-import { createStolenDeviceReport } from '@/api/functions';
+import { startReport, startCertificate, confirmAction, resendAction } from '@/api/functions';
+import OtpDialog from '../components/OtpDialog';
+import PhoneFromIdInput from '../components/PhoneFromIdInput';
+import { usePhoneHint } from '@/hooks/usePhoneHint';
 import { createPurchaseCertificate } from '@/api/functions';
-import { getAdminDashboardData } from '@/api/functions'; // NEW
-import { updateStolenDeviceReport } from '@/api/functions'; // NEW
+import { getAdminDashboardData } from '@/api/functions';
+import { updateStolenDeviceReport } from '@/api/functions';
+import { getNextCertificateNumber } from '@/api/functions';
 
-// Helper to normalize numbers - AND convert to lowercase for serials
+// normalize a serial number (Arabic digits -> English, lowercase)
 const normalizeSerial = (text) => {
   if (!text) return '';
   const arabicNumbers = '٠١٢٣٤٥٦٧٨٩';
@@ -63,42 +68,33 @@ const normalizePhoneNumber = (phone) => {
 };
 
 
-// Input validation helpers
-const enforceNumeric = (value) => value.replace(/[^0-9]/g, '');
+// Arabic-Indic digits are converted first, then everything else is stripped
+const enforceNumeric = (value) => normalizeNumbers(value).replace(/[^0-9]/g, '');
 const enforceAlphabetic = (value) => value.replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '');
 const isValidLocation = (value) => !/^[0-9\s]+$/.test(value.trim());
 
-// NEW: Auto-detect ID type from number
+// detect the ID type from the number
 const detectIdType = (idNumber) => {
   if (!idNumber || String(idNumber).length !== 10) return null;
   const firstDigit = String(idNumber).charAt(0);
   if (firstDigit === '1') return 'national_id';
   if (firstDigit === '2') return 'resident_id';
-  if (firstDigit === '7') return 'commercial_reg';
+  if (firstDigit === '3' || firstDigit === '7') return 'commercial_reg';
   return null;
 };
 
-// ID validation helper - Updated to auto-detect type
+// ID validation
 const validateId = (id) => {
   if (!id || String(id).length !== 10) return false;
   const detectedType = detectIdType(id);
   return detectedType !== null;
 };
 
-// REMOVED: generateReportId function
 
-// Generate unique certificate number with sequential numbering
+// next certificate number (dedicated endpoint)
 const generateCertificateNumber = async () => {
   try {
-    const latestCerts = await PurchaseCertificate.list('-certificateNumber', 1);
-
-    if (latestCerts && latestCerts.length > 0) {
-      const lastNumber = parseInt(latestCerts[0].certificateNumber, 10);
-      const newNumber = lastNumber + 1;
-      return String(newNumber).padStart(10, '0');
-    } else {
-      return '0000000001';
-    }
+    return await getNextCertificateNumber();
   } catch (error) {
     console.error("Failed to generate certificate number:", error);
     const timestamp = Date.now();
@@ -124,7 +120,7 @@ const CopyButton = ({ text, t }) => {
     <Button
       onClick={handleCopy}
       size="sm"
-      className={`mt-2 ${copied ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+      className={`mt-2 ${copied ? 'bg-green-600 hover:bg-green-700' : 'bg-teal-600 hover:bg-teal-700'}`}
     >
       {copied ? <Check className="w-4 h-4 ml-2" /> : <Copy className="w-4 h-4 ml-2" />}
       {copied ? t('copied') : t('copyReportId')}
@@ -132,8 +128,8 @@ const CopyButton = ({ text, t }) => {
   );
 };
 
-// The page component receives lang from Layout
-export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser, setLoggedInUser, userType, setUserType, lang }) {
+export default function HomePage() {
+  const { showUserLogin, setShowUserLogin, loggedInUser, setLoggedInUser, userType, setUserType, lang } = useContext(AppContext);
   const [activeTab, setActiveTab] = useState('check');
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ isOpen: false, title: '', content: null, status: 'default' });
@@ -143,6 +139,26 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
 
 
   const t = (key) => translations[lang][key] || key;
+
+  // leave the account tab when the header logout button is used
+  useEffect(() => {
+    const onLogout = () => setActiveTab('check');
+    window.addEventListener('app:logout', onLogout);
+    return () => window.removeEventListener('app:logout', onLogout);
+  }, []);
+
+  // keep the app-wide user and the saved session in sync after a profile edit
+  const handleUserUpdate = (updatedUser) => {
+    if (!updatedUser) return;
+    const merged = { ...loggedInUser, ...updatedUser };
+    setLoggedInUser(merged);
+    try {
+      localStorage.setItem('loggedInUser', JSON.stringify(merged));
+    } catch {
+      // localStorage unavailable
+    }
+    User.setCurrent(merged); // no token argument: keeps the existing session token
+  };
 
   const tabs = [
     { id: 'check', label: t('checkDevice'), icon: '🔍' },
@@ -168,12 +184,15 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
     setCheckResult(null);
 
     try {
-      // Guard against the functions module or SDK not being available at runtime.
       if (typeof checkDevice !== 'function') {
         setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
       } else {
-        const { data: result } = await checkDevice({ serialNumber: serialNumber });
-        setCheckResult({ ...result, originalSerial: serialNumberInput });
+        const { data: result, error: checkError } = await checkDevice({ serialNumber: serialNumber });
+        if (checkError || !result) {
+          setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
+        } else {
+          setCheckResult({ ...result, originalSerial: serialNumberInput });
+        }
       }
     } catch (error) {
       console.error("Check device error:", error);
@@ -183,7 +202,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
     }
   };
 
-  // NEW: Function to clear check results
+  // clear the check result
   const handleClearCheckResult = () => {
     setCheckResult(null);
   };
@@ -192,7 +211,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
   const handleUserLoginSuccess = (type, userData) => {
     setUserType(type);
     setLoggedInUser(userData);
-    // Persist session so Layout and other pages can read it
+    // save the session for Layout and other pages
     try {
       localStorage.setItem('loggedInUser', JSON.stringify(userData));
       localStorage.setItem('userType', type);
@@ -213,9 +232,17 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
     setLoggedInUser(null);
     setUserType(null);
     setActiveTab('check');
+    // clear the saved session
+    try {
+      localStorage.removeItem('loggedInUser');
+      localStorage.removeItem('userType');
+    } catch {
+      // localStorage unavailable
+    }
+    User.clear();
   };
 
-  // NEW: Handle quick purchase navigation
+  // go to the purchase tab with the serial filled in
   const handleQuickPurchase = (serialNumber) => {
     setPreFilledSerial(serialNumber);
     setActiveTab('store');
@@ -237,8 +264,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
         if (!loggedInUser) {
           return <div className="text-center p-10 text-white">{t('loadingData')}</div>;
         }
-        // UserDashboard itself might handle showing UserProfileTab based on its internal state
-        return <UserDashboard t={t} user={loggedInUser} onLogout={handleUserLogout} setNotification={setNotification} userType={userType} />;
+        return <UserDashboard t={t} user={loggedInUser} onLogout={handleUserLogout} onUserUpdate={handleUserUpdate} setNotification={setNotification} userType={userType} />;
       default:
         return <p className="text-white">{t('underDevelopment')}</p>;
     }
@@ -275,15 +301,15 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-5 px-6 text-center font-bold transition-all duration-300 relative overflow-hidden ${activeTab === tab.id ?
-                'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-                'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 hover:text-blue-600'}`
+                'text-white bg-gradient-to-r from-teal-600 to-teal-700' :
+                'text-gray-600 bg-white hover:bg-gradient-to-r hover:from-teal-50 hover:to-teal-100 hover:text-teal-600'}`
               }>
 
               <div className="flex items-center justify-center space-x-2 space-x-reverse">
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
               </div>
-              {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
+              {activeTab === tab.id && <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-teal-600 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>}
             </button>
           )}
         </div>
@@ -306,8 +332,8 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
                         setShowMobileMenu(false); // Close menu on tab click
                       }}
                       className={`w-full p-4 rounded-lg transition-all duration-300 font-bold text-right ${activeTab === tab.id ?
-                        'text-white bg-gradient-to-r from-blue-600 to-blue-700' :
-                        'text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600'}`
+                        'text-white bg-gradient-to-r from-teal-600 to-teal-700' :
+                        'text-gray-600 bg-gray-50 hover:bg-teal-50 hover:text-teal-600'}`
                       }>
 
                       <div className={`flex items-center justify-start space-x-3 space-x-reverse`}>
@@ -334,9 +360,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
           {renderContent()}
         </motion.div>
       </AnimatePresence>
-
-      {/* User Login Modal - Updated */}
-            <UserLoginModal
+      <UserLoginModal
         isOpen={showUserLogin}
         onClose={() => setShowUserLogin(false)}
         onLoginSuccess={handleUserLoginSuccess}
@@ -344,7 +368,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
         lang={lang}
       />
 
-            <NotificationModal
+      <NotificationModal
         isOpen={notification.isOpen}
         onClose={() => setNotification({ ...notification, isOpen: false })}
         title={notification.title}
@@ -357,7 +381,7 @@ export default function HomePage({ showUserLogin, setShowUserLogin, loggedInUser
 
 }
 
-// NEW: Helper function to mask ID numbers
+// mask an ID number (the caller escapes the HTML)
 const maskIdNumber = (id) => {
   if (!id || typeof id !== 'string' || id.length < 5) {
     return id; // Return as is if it's not a long enough string
@@ -367,12 +391,15 @@ const maskIdNumber = (id) => {
 };
 
 
-// Function to print certificate using HTML - Updated with all changes
+// print a certificate
 const printCertificateHtml = (certificate, t, userType) => {
   const isAdmin = userType === 'admin';
 
-  // Helper to safely display data, replacing null/undefined with '-'
-  const display = (value) => value || '-';
+  // show '-' for empty values and escape HTML (this goes into document.write)
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+  const display = (value) => escapeHtml(value || '-');
 
   const idTypeTranslations = {
     national_id: t('idNational'),
@@ -610,7 +637,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                     <div class="info-grid">
                         <div class="info-item" style="grid-column: span 2;">
                             <div class="info-label">${t('buyerName')}</div>
-                            <div class="info-value">${display(certificate.buyerName)}${certificate.buyerNameAtSale ? ` / ${certificate.buyerNameAtSale}` : ''}</div>
+                            <div class="info-value">${display(certificate.buyerName)}${certificate.buyerNameAtSale ? ` / ${escapeHtml(certificate.buyerNameAtSale)}` : ''}</div>
                         </div>
                          <div class="info-item">
                             <div class="info-label">${t('idType')}</div>
@@ -618,7 +645,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                         </div>
                         <div class="info-item">
                             <div class="info-label">${t('idNumber')}</div>
-                            <div class="info-value">${isAdmin ? display(certificate.buyerId) : maskIdNumber(certificate.buyerId)}</div>
+                            <div class="info-value">${isAdmin ? display(certificate.buyerId) : escapeHtml(maskIdNumber(certificate.buyerId))}</div>
                         </div>
                     </div>
 
@@ -630,7 +657,7 @@ const printCertificateHtml = (certificate, t, userType) => {
                         </div>
                         <div class="info-item">
                             <div class="info-label">${t('idNumber')}</div>
-                            <div class="info-value">${isAdmin ? display(certificate.sellerNationalId) : maskIdNumber(certificate.sellerNationalId)}</div>
+                            <div class="info-value">${isAdmin ? display(certificate.sellerNationalId) : escapeHtml(maskIdNumber(certificate.sellerNationalId))}</div>
                         </div>
                         <div class="info-item" style="grid-column: span 2;">
                             <div class="info-label">${t('phoneNumber')}</div>
@@ -661,7 +688,7 @@ const printCertificateHtml = (certificate, t, userType) => {
 };
 
 
-// Check Device Tab Component - Updated with proper date formatting
+// Check device tab
 const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, loading, onClearResult, userType }) => {
   // Use the shared printCertificateHtml function
   const printCertificate = (certificate) => printCertificateHtml(certificate, t, userType);
@@ -728,8 +755,8 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
         <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl transition-all duration-300 hover:scale-[1.02] p-4 sm:p-8">
           <CardHeader className="p-0 mb-6">
-            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
+            <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-teal-800 to-teal-600 bg-clip-text text-transparent mb-6 sm:mb-8 flex items-center">
+              <div className="bg-gradient-to-r from-teal-500 to-teal-700 p-2 sm:p-3 rounded-xl ml-3 shadow-lg">
                 <Search className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
               </div>
               {t('checkSerialTitle')}
@@ -744,9 +771,9 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                   name="serialNumber"
                   placeholder={t('serialNumberPlaceholder')}
                   required
-                  dir="ltr" className="bg-slate-200 text-left p-3 text-base flex ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm w-full sm:p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition-all duration-300 backdrop-blur-sm hover:border-blue-300 h-12 sm:h-14 sm:text-lg" />
+                  dir="ltr" className="bg-slate-200 text-left p-3 text-base flex ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm w-full sm:p-4 border-2 border-teal-200 rounded-xl focus:ring-4 focus:ring-teal-300 focus:border-teal-500 transition-all duration-300 backdrop-blur-sm hover:border-teal-300 h-12 sm:h-14 sm:text-lg" />
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-blue-700 hover:to-blue-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
+              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 sm:py-4 px-6 rounded-xl font-bold text-base sm:text-lg hover:from-teal-700 hover:to-teal-900 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl h-12 sm:h-16">
                 {loading ? t('checking') : `🔍 ${t('checkNowButton')}`}
               </Button>
             </form>
@@ -766,7 +793,7 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
             <AnimatePresence mode="wait">
               {loading ? (
                 <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-8 sm:py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
                   <p className="text-gray-500 text-base sm:text-lg font-medium mt-4">{t('checkingDevice')}</p>
                 </motion.div>
               ) : !checkResult ?
@@ -788,9 +815,9 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                       <p className="text-green-700 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
                       {checkResult.certificate &&
                         <div className="mt-4">
-                          <h4 className="text-blue-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
-                            <p className="font-semibold text-blue-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
+                          <h4 className="text-teal-800 font-bold text-base sm:text-lg mb-2">{t('existingCertificate')}</h4>
+                          <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 sm:p-4">
+                            <p className="font-semibold text-teal-800 mb-2">{t('certificateNumber')}: {checkResult.certificate.certificateNumber}</p>
                           </div>
                         </div>
                       }
@@ -804,7 +831,26 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
                         </Button>
                       </div>
                     </div>
-                  </motion.div> : null
+                  </motion.div> :
+                  checkResult.status === 'unknown' ?
+                    <motion.div key="unknown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center rounded-2xl p-2">
+                      <div className="bg-gradient-to-r from-slate-400 to-slate-500 p-4 sm:p-6 rounded-full w-16 sm:w-24 h-16 sm:h-24 mx-auto mb-4 sm:mb-6">
+                        <AlertTriangle className="w-8 sm:w-12 h-8 sm:h-12 text-white mx-auto" />
+                      </div>
+                      <h3 className="2xl sm:text-3xl font-bold text-slate-600 mb-4">{t('unknownDeviceTitle')}</h3>
+                      <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 sm:p-6">
+                        <p className="text-slate-700 font-medium mb-4 text-sm sm:text-base">{t('deviceNotRegisteredMessage')}</p>
+                        <p className="text-slate-600 font-semibold text-sm sm:text-base"><strong>{t('serialNumberLabel')}:</strong> {checkResult.originalSerial}</p>
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => onQuickPurchase(checkResult.originalSerial)}
+                            className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white py-3 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                          >
+                            🛒 {t('buyThisDevice')}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div> : null
               }
             </AnimatePresence>
           </CardContent>
@@ -830,13 +876,16 @@ const CheckDeviceTab = ({ t, handleCheckDevice, checkResult, onQuickPurchase, lo
     </div>);
 };
 
-// Report Theft Tab Component - Updated to use backend-generated unique report ID
+// Report theft tab
 const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     reporterNationalId: '', reporterPhone: '',
     deviceType: '', serialNumber: '', theftDate: '', location: '', theftDetails: ''
   });
+  // phone comes from the account of the national ID, or is typed when there is none
+  const phoneHint = usePhoneHint(formData.reporterNationalId);
+  const [otpSession, setOtpSession] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -859,12 +908,64 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const showReportError = (code) => {
+    const reportErrorMessages = {
+      already_reported: 'deviceAlreadyReportedStolen',
+      reporter_not_owner: 'reporterNotOwnerError',
+      device_type_mismatch: 'deviceTypeMismatchError',
+      reporter_phone_mismatch: 'reporterPhoneMismatchError',
+      invalid_location: 'invalidLocationSelection',
+      invalid_phone: 'invalidPhoneError',
+      otp_unavailable: 'otpUnavailableError',
+      otp_rate_limited: 'otpRateLimitedError',
+      otp_send_failed: 'otpSendFailedError',
+      rate_limited: 'tooManyAttemptsError',
+    };
+    const messageKey = reportErrorMessages[code];
+    setNotification({
+      isOpen: true,
+      title: messageKey ? t('reportTheftError') : t('reportErrorTitle'),
+      content: <p>{t(messageKey || 'reportErrorMessage')}</p>,
+      status: 'danger'
+    });
+  };
+
+  // step 2: the code from WhatsApp
+  const handleOtpConfirm = async (codes) => {
+    const { data: newReport, error } = await confirmAction({ actionId: otpSession.actionId, codes });
+    if (error === 'invalid_code' || error === 'rate_limited' || error === 'network_error') return { error };
+    setOtpSession(null);
+    if (error || !newReport) {
+      showReportError(error);
+      return {};
+    }
+    onReportAdded();
+    setNotification({
+      isOpen: true, status: 'success', title: t('reportSuccessTitle'),
+      content: <div>
+        <p>{t('reportSuccessMessage')}</p>
+        <p className="font-bold text-teal-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
+        <CopyButton text={newReport.reportId} t={t} />
+      </div>
+    });
+    setFormData({
+      reporterNationalId: '', reporterPhone: '',
+      deviceType: '', serialNumber: '', theftDate: '', location: '', theftDetails: ''
+    });
+    return {};
+  };
+
+  const handleOtpResend = async () => {
+    const { error } = await resendAction(otpSession.actionId);
+    return { error };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // --- VALIDATION START ---
-    // Check if all required fields are filled
-    const allFieldsFilled = formData.reporterNationalId && formData.reporterPhone && formData.deviceType && formData.serialNumber && formData.theftDate && formData.location;
+    // validation
+    const phoneKnown = phoneHint.status === 'found';
+    const allFieldsFilled = formData.reporterNationalId && (phoneKnown || formData.reporterPhone) && formData.deviceType && formData.serialNumber && formData.theftDate && formData.location;
     if (!allFieldsFilled) {
       setNotification({
         isOpen: true,
@@ -885,14 +986,19 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
       return;
     }
 
-    // Normalize phone number for consistent validation
+    if (phoneHint.status === 'loading') {
+      setNotification({ isOpen: true, status: 'danger', title: t('validationErrorTitle'), content: <p>{t('phoneChecking')}</p> });
+      return;
+    }
+
+    // normalize the typed phone
     const normalizedPhone = normalizePhoneNumber(formData.reporterPhone);
-    if (normalizedPhone.length !== 10 || !normalizedPhone.startsWith('05')) {
+    if (!phoneKnown && (normalizedPhone.length !== 10 || !normalizedPhone.startsWith('05'))) {
       setNotification({ isOpen: true, status: 'danger', title: t('validationErrorTitle'), content: <p>{t('invalidPhoneError')}</p> });
       return;
     }
 
-    // Location validation - make sure it's in the proper format (Region - City - District)
+    // location format: Region - City - District
     const locationParts = formData.location.split(' - ');
     if (locationParts.length !== 3) {
       setNotification({
@@ -901,96 +1007,38 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
       });
       return;
     }
-    // --- VALIDATION END ---
 
     setLoading(true);
     try {
       const serialNumber = normalizeSerial(formData.serialNumber);
-
-      let checkResultData = null;
-      if (typeof checkDevice !== 'function') {
-        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
-        setLoading(false);
-        return;
-      } else {
-        const { data: _checkResultData } = await checkDevice({ serialNumber: serialNumber });
-        checkResultData = _checkResultData;
-      }
-
-      if (checkResultData?.status === 'stolen') {
-        setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('deviceAlreadyReportedStolen')}</p>, status: 'danger' });
-        setLoading(false);
-        return;
-      }
-
-      if (checkResultData?.certificate) {
-        const cert = checkResultData.certificate;
-        // Check if reporter ID matches the owner ID
-        if (cert.buyerId !== formData.reporterNationalId) {
-          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterNotOwnerError')}</p>, status: 'danger' });
-          setLoading(false);
-          return;
-        }
-
-        // Check device type match
-        if (cert.deviceType !== formData.deviceType) {
-          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('deviceTypeMismatchError')}</p>, status: 'danger' });
-          setLoading(false);
-          return;
-        }
-
-        // Get the latest user data for phone comparison
-        const { data: ownerData } = await findUserByNationalId({ nationalId: cert.buyerId });
-        if (!ownerData?.user) {
-          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterNotOwnerError')}</p>, status: 'danger' });
-          setLoading(false);
-          return;
-        }
-
-        // Normalize both phone numbers for comparison
-        const userPhoneNormalized = normalizePhoneNumber(ownerData.user.phone_number);
-        const inputPhoneNormalized = normalizePhoneNumber(formData.reporterPhone);
-
-        if (userPhoneNormalized !== inputPhoneNormalized) {
-          setNotification({ isOpen: true, title: t('reportTheftError'), content: <p>{t('reporterPhoneMismatchError')}</p>, status: 'danger' });
-          setLoading(false);
-          return;
-        }
-
-        await PurchaseCertificate.update(cert.id, { status: 'stolen' });
-      }
-
       const reporterIdType = detectIdType(formData.reporterNationalId);
 
+      // step 1: the server checks the report and sends the code to the reporter's phone
       const reportData = {
         serialNumber: serialNumber,
         deviceType: formData.deviceType,
         reporterIdType: reporterIdType,
         reporterNationalId: formData.reporterNationalId,
-        reporterPhone: normalizedPhone, // Use normalized phone number
+        reporterPhone: phoneKnown ? undefined : normalizedPhone,
         theftDate: formData.theftDate,
         location: formData.location.trim(),
-        theftDetails: formData.theftDetails.trim() || '',
-        status: 'active'
+        theftDetails: formData.theftDetails.trim() || ''
       };
 
-      // Use the backend function to create the report
-      const { data: newReport } = await createStolenDeviceReport(reportData);
+      const { data: started, error: startError } = await startReport(reportData);
 
-      onReportAdded();
-      setNotification({
-        isOpen: true, status: 'success', title: t('reportSuccessTitle'),
-        content: <div>
-          <p>{t('reportSuccessMessage')}</p>
-          <p className="font-bold text-blue-600 mt-2 text-lg">{t('reportId')}: {newReport.reportId}</p>
-          <CopyButton text={newReport.reportId} t={t} />
-        </div>
-      });
+      if (startError || !started) {
+        showReportError(startError);
+        setLoading(false);
+        return;
+      }
 
-      // Reset form
-      setFormData({
-        reporterNationalId: '', reporterPhone: '',
-        deviceType: '', serialNumber: '', theftDate: '', location: '', theftDetails: ''
+      setOtpSession({
+        actionId: started.actionId,
+        title: t('otpTitleReport'),
+        expiresInSeconds: started.expiresInSeconds,
+        resendAfterSeconds: started.resendAfterSeconds,
+        fields: [{ role: 'reporter', label: t('otpCodeReporter'), maskedPhone: started.targets[0]?.maskedPhone }]
       });
     } catch (error) {
       const errorMessage = error.response?.data?.message || t('reportErrorMessage');
@@ -1005,6 +1053,7 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
   };
 
   return (
+    <>
     <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl p-6 max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
@@ -1022,21 +1071,18 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
               value={formData.reporterNationalId}
               onChange={handleChange}
               placeholder={t('reporterNationalId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
-            <Input
+            <PhoneFromIdInput
+              hint={phoneHint}
               name="reporterPhone"
-              type="tel"
-              inputMode="numeric"
               value={formData.reporterPhone}
               onChange={handleChange}
               placeholder={t('reporterPhone')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-              required
+              t={t}
             />
           </div>
           <Select name="deviceType" onValueChange={(v) => handleSelectChange('deviceType', v)} required>
@@ -1052,7 +1098,7 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
           </Select>
           <Input
             name="serialNumber"
-            // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
+            // no type="tel": serial numbers can contain letters
             value={formData.serialNumber}
             onChange={handleChange}
             placeholder={t('serialNumberLabel')}
@@ -1095,22 +1141,37 @@ const ReportTheftTab = ({ t, setNotification, onReportAdded, lang }) => {
           </Button>
         </form>
       </CardContent>
-    </Card>);
+    </Card>
+    <OtpDialog
+      session={otpSession}
+      t={t}
+      lang={lang}
+      onCancel={() => setOtpSession(null)}
+      onConfirm={handleOtpConfirm}
+      onResend={handleOtpResend}
+    />
+    </>);
 
 };
 
-// Store Purchase Tab Component - Updated with seller phone verification
+// Purchase tab
 const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSerial, setPreFilledSerial, userType }) => {
   const [formData, setFormData] = useState({
     serialNumber: '',
     deviceType: '',
     buyerId: '',
     buyerName: '',
+    buyerPhone: '',
     sellerId: '',
     sellerPhone: '',
     purchasePrice: ''
   });
   const [loading, setLoading] = useState(false);
+  // each party's phone comes from their account, or is typed when there is none
+  const buyerHint = usePhoneHint(formData.buyerId);
+  const sellerHint = usePhoneHint(formData.sellerId);
+  // pending confirmation (seller and buyer codes)
+  const [otpSession, setOtpSession] = useState(null);
 
   useEffect(() => {
     if (preFilledSerial) {
@@ -1128,7 +1189,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       if (processedValue.length > 10) {
         processedValue = processedValue.slice(0, 10);
       }
-    } else if (name === 'sellerPhone') {
+    } else if (name === 'sellerPhone' || name === 'buyerPhone') {
       processedValue = enforceNumeric(value);
       if (processedValue.length > 10) {
         processedValue = processedValue.slice(0, 10);
@@ -1159,13 +1220,86 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
     }
   };
 
+  const showIssueError = (code) => {
+    const issueErrors = {
+      buyer_not_found: ['certificateErrorTitle', 'buyerNotFound'],
+      seller_not_found: ['certificateErrorTitle', 'sellerNotFound'],
+      device_stolen: ['stolenDeviceTitle', 'deviceReportedStolen'],
+      device_type_mismatch: ['ownershipErrorTitle', 'deviceTypeMismatchError'],
+      seller_not_owner: ['ownershipErrorTitle', 'sellerNotOwner'],
+      same_buyer_seller: ['validationErrorTitle', 'sameBuyerSellerError'],
+      same_phone_number: ['validationErrorTitle', 'samePhoneNumberError'],
+      invalid_phone: ['validationErrorTitle', 'invalidPhoneError'],
+      invalid_price: ['validationErrorTitle', 'invalidPriceError'],
+      otp_unavailable: ['errorTitle', 'otpUnavailableError'],
+      otp_rate_limited: ['errorTitle', 'otpRateLimitedError'],
+      otp_send_failed: ['errorTitle', 'otpSendFailedError'],
+      rate_limited: ['errorTitle', 'tooManyAttemptsError'],
+    };
+    const [titleKey, messageKey] = issueErrors[code] || ['errorTitle', 'certificateErrorMessage'];
+    setNotification({ isOpen: true, title: t(titleKey), content: <p>{t(messageKey)}</p>, status: 'danger' });
+  };
+
+  // step 2: seller and buyer codes
+  const handleOtpConfirm = async (codes) => {
+    const { data: newCertificate, error } = await confirmAction({ actionId: otpSession.actionId, codes });
+    if (error === 'invalid_code' || error === 'rate_limited' || error === 'network_error') return { error };
+    setOtpSession(null);
+    if (error || !newCertificate) {
+      showIssueError(error);
+      return {};
+    }
+    onCertificateIssued();
+
+    setNotification({
+      isOpen: true,
+      title: t('certificateIssuedTitle'),
+      content: (
+        <div>
+          <p>{t('certificateIssuedMessage')}</p>
+          <p className="font-bold text-teal-600 mt-2">{t('certificateNumber')}: {newCertificate.certificateNumber}</p>
+          <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
+            <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
+          </Button>
+        </div>
+      ),
+      status: 'success'
+    });
+
+    setFormData({
+      serialNumber: '',
+      deviceType: '',
+      buyerId: '',
+      buyerName: '',
+      buyerPhone: '',
+      sellerId: '',
+      sellerPhone: '',
+      purchasePrice: ''
+    });
+    return {};
+  };
+
+  const handleOtpResend = async () => {
+    const { error } = await resendAction(otpSession.actionId);
+    return { error };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const buyerPhoneKnown = buyerHint.status === 'found';
+    const sellerPhoneKnown = sellerHint.status === 'found';
+
     // Validate required fields
     if (!formData.serialNumber || !formData.deviceType || !formData.buyerId ||
-      !formData.buyerName || !formData.sellerId || !formData.sellerPhone || !formData.purchasePrice) {
+      !formData.buyerName || !formData.sellerId || !formData.purchasePrice ||
+      (!buyerPhoneKnown && !formData.buyerPhone) || (!sellerPhoneKnown && !formData.sellerPhone)) {
       setNotification({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('allFieldsRequired')}</p>, status: 'danger' });
+      return;
+    }
+
+    if (buyerHint.status === 'loading' || sellerHint.status === 'loading') {
+      setNotification({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('phoneChecking')}</p>, status: 'danger' });
       return;
     }
 
@@ -1175,8 +1309,9 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
       return;
     }
 
-    // Validate phone number
-    if (!formData.sellerPhone.match(/^05\d{8}$/)) {
+    // Validate the phone numbers that were typed by hand
+    if ((!buyerPhoneKnown && !formData.buyerPhone.match(/^05\d{8}$/)) ||
+      (!sellerPhoneKnown && !formData.sellerPhone.match(/^05\d{8}$/))) {
       setNotification({ isOpen: true, title: t('validationErrorTitle'), content: <p>{t('invalidPhoneError')}</p>, status: 'danger' });
       return;
     }
@@ -1197,161 +1332,37 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
     setLoading(true);
 
     try {
-      // Data is sent as plaintext.
       const normalizedSerialNumber = normalizeSerial(formData.serialNumber);
 
-      // Backend `findUserByNationalId` now works reliably with plaintext.
-      const { data: buyerCheckResponse } = await findUserByNationalId({ nationalId: formData.buyerId });
-
-      if (!buyerCheckResponse?.exists || !buyerCheckResponse?.data?.user) {
-        setNotification({
-          isOpen: true,
-          title: t('certificateErrorTitle'),
-          content: <p>{t('buyerNotFound')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
-      }
-      const buyerUser = buyerCheckResponse.data.user;
-
-      const { data: sellerCheckResponse } = await findUserByNationalId({ nationalId: formData.sellerId });
-
-      if (!sellerCheckResponse?.exists || !sellerCheckResponse?.data?.user) {
-        setNotification({
-          isOpen: true,
-          title: t('certificateErrorTitle'),
-          content: <p>{t('sellerNotFound')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
-      }
-      const sellerUser = sellerCheckResponse.data.user;
-
-      // NEW: Verify seller's phone number matches what's registered
-      if (sellerUser.phone_number !== formData.sellerPhone) {
-        setNotification({
-          isOpen: true,
-          title: t('validationErrorTitle'),
-          content: <p>{t('sellerPhoneIncorrect')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Backend `checkDevice` will handle plaintext ID comparison
-      let checkResultData = null;
-      if (typeof checkDevice !== 'function') {
-        setNotification({ isOpen: true, title: t('errorTitle'), content: <p>{t('certificateErrorMessage')}</p>, status: 'danger' });
-        setLoading(false);
-        return;
-      } else {
-        const { data: _checkResultData } = await checkDevice({ serialNumber: normalizedSerialNumber });
-        checkResultData = _checkResultData;
-      }
-
-      if (checkResultData.status === 'stolen') {
-        setNotification({
-          isOpen: true,
-          title: t('stolenDeviceTitle'),
-          content: <p>{t('deviceReportedStolen')}</p>,
-          status: 'danger'
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Check ownership and device type if device already has certificate
-      if (checkResultData.certificate) {
-        const existingCert = checkResultData.certificate;
-
-        // NEW: Validate that the selected device type matches the registered one
-        if (existingCert.deviceType !== formData.deviceType) {
-          setNotification({
-            isOpen: true,
-            title: t('ownershipErrorTitle'),
-            content: <p>{t('deviceTypeMismatchError')}</p>,
-            status: 'danger'
-          });
-          setLoading(false);
-          return;
-        }
-
-        // Check if seller is the current owner (checkDevice already returns plaintext buyerId for comparison)
-        if (existingCert.buyerId !== formData.sellerId) {
-          setNotification({
-            isOpen: true,
-            title: t('ownershipErrorTitle'),
-            content: <p>{t('sellerNotOwner')}</p>,
-            status: 'danger'
-          });
-          setLoading(false);
-          return;
-        }
-
-        // Mark existing certificate as transferred
-        try {
-          await PurchaseCertificate.update(existingCert.id, { status: 'transferred' });
-        } catch (error) {
-          console.error("Failed to update existing certificate:", error);
-          // Don't necessarily stop the process, but log the error
-        }
-      }
-
-      // Generate new certificate
-      const newCertificateNumber = await generateCertificateNumber();
-      const buyerIdType = detectIdType(formData.buyerId);
-      const sellerIdType = detectIdType(formData.sellerId);
-
-
-      const certificateData = {
-        certificateNumber: newCertificateNumber,
-        buyerIdType: buyerIdType,
-        buyerId: formData.buyerId, // Plaintext
-        buyerName: buyerUser.full_name,
-        buyerNameAtSale: formData.buyerName, // Use what user typed in buyerName field
-        sellerIdType: sellerIdType,
-        sellerNationalId: formData.sellerId, // Plaintext
-        sellerPhone: formData.sellerPhone, // Plaintext
-        deviceType: formData.deviceType,
+      // step 1: the server checks the sale and sends a code to the seller and another to the buyer
+      const { data: started, error: startError } = await startCertificate({
         serialNumber: normalizedSerialNumber,
-        purchasePrice: price,
-        issueDate: new Date().toISOString().split('T')[0],
-        status: 'active'
-      };
-
-      // Use the new backend function to create the certificate
-      const { data: newCertificate } = await createPurchaseCertificate(certificateData);
-      onCertificateIssued();
-
-      setNotification({
-        isOpen: true,
-        title: t('certificateIssuedTitle'),
-        content: (
-          <div>
-            <p>{t('certificateIssuedMessage')}</p>
-            <p className="font-bold text-blue-600 mt-2">{t('certificateNumber')}: {newCertificate.certificateNumber}</p>
-            <Button onClick={() => printCertificate(newCertificate)} className="mt-4 w-full">
-              <Printer className="ml-2 h-4 w-4" /> {t('printCertificate')}
-            </Button>
-          </div>
-        ),
-        status: 'success'
+        deviceType: formData.deviceType,
+        buyerId: formData.buyerId,
+        buyerName: formData.buyerName,
+        buyerPhone: buyerPhoneKnown ? undefined : formData.buyerPhone,
+        sellerId: formData.sellerId,
+        sellerPhone: sellerPhoneKnown ? undefined : formData.sellerPhone,
+        purchasePrice: price
       });
 
-      // Reset form
-      setFormData({
-        serialNumber: '',
-        deviceType: '',
-        buyerId: '',
-        buyerName: '',
-        sellerId: '',
-        sellerPhone: '',
-        purchasePrice: ''
-      });
+      if (startError || !started) {
+        showIssueError(startError);
+        setLoading(false);
+        return;
+      }
 
+      const maskedFor = (role) => started.targets.find((x) => x.role === role)?.maskedPhone;
+      setOtpSession({
+        actionId: started.actionId,
+        title: t('otpTitlePurchase'),
+        expiresInSeconds: started.expiresInSeconds,
+        resendAfterSeconds: started.resendAfterSeconds,
+        fields: [
+          { role: 'seller', label: t('otpCodeSeller'), maskedPhone: maskedFor('seller') },
+          { role: 'buyer', label: t('otpCodeBuyer'), maskedPhone: maskedFor('buyer') }
+        ]
+      });
     } catch (error) {
       console.error("Certificate creation error:", error);
       setNotification({
@@ -1366,14 +1377,15 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
   };
 
   return (
+    <>
     <Card className="bg-white/95 backdrop-blur-xl border border-white/30 shadow-2xl p-6 max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle className="text-xl font-bold text-gray-800 mb-6 flex items-center">
           <ShoppingCart className="w-6 h-6 ml-2 text-green-600" />
           {t('buyDeviceTitle')}
         </CardTitle>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 text-sm">
+        <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+          <p className="text-teal-800 text-sm">
             <strong>{t('forBuyer')}:</strong> {t('forBuyerText')}
           </p>
         </div>
@@ -1388,8 +1400,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               value={formData.buyerId}
               onChange={handleChange}
               placeholder={t('buyerId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
@@ -1405,6 +1417,17 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
+            <PhoneFromIdInput
+              hint={buyerHint}
+              name="buyerPhone"
+              value={formData.buyerPhone}
+              onChange={handleChange}
+              placeholder={t('buyerPhone')}
+              t={t}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
             <Input
               name="sellerId"
               type="tel"
@@ -1412,21 +1435,18 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
               value={formData.sellerId}
               onChange={handleChange}
               placeholder={t('sellerId')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              dir={translations[t('lang')].dir}
+              className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               required
             />
 
-            <Input
+            <PhoneFromIdInput
+              hint={sellerHint}
               name="sellerPhone"
-              type="tel"
-              inputMode="numeric"
               value={formData.sellerPhone}
               onChange={handleChange}
               placeholder={t('sellerPhone')}
-              dir="ltr"
-              className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-              required
+              t={t}
             />
           </div>
 
@@ -1444,7 +1464,7 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
 
           <Input
             name="serialNumber"
-            // Removed type="tel" and inputMode="numeric" to allow alphanumeric input
+            // no type="tel": serial numbers can contain letters
             value={formData.serialNumber}
             onChange={handleChange}
             placeholder={t('serialNumberLabel')}
@@ -1460,8 +1480,8 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
             value={formData.purchasePrice}
             onChange={handleChange}
             placeholder={t('purchasePrice')}
-            dir="ltr"
-            className="bg-slate-200 text-left px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            dir={translations[t('lang')].dir}
+            className="bg-slate-200 text-right px-3 py-2 text-base flex h-10 w-full rounded-md border border-input ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
             required
           />
 
@@ -1470,7 +1490,16 @@ const StorePurchaseTab = ({ t, setNotification, onCertificateIssued, preFilledSe
           </Button>
         </form>
       </CardContent>
-    </Card>);
+    </Card>
+    <OtpDialog
+      session={otpSession}
+      t={t}
+      lang={t('lang')}
+      onCancel={() => setOtpSession(null)}
+      onConfirm={handleOtpConfirm}
+      onResend={handleOtpResend}
+    />
+    </>);
 
 };
 
@@ -1501,7 +1530,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
   const fetchAdminData = React.useCallback(async () => {
     setAdminLoading(true);
     try {
-      // Fetch plaintext data from the backend function
+      // load the dashboard data
       const { data } = await getAdminDashboardData();
       const devices = data.stolenDevices || [];
       const certs = data.certificates || [];
@@ -1543,6 +1572,47 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
   const handleApproveClosure = async (report) => {
     try {
       await updateStolenDeviceReport({ reportId: report.id, updates: { status: 'closed' } });
+
+      // A closed report: the device is no longer stolen and should show in the reporter's devices again with a certificate.
+      if (report.serialNumber && report.reporterNationalId) {
+        try {
+          // 1) it had a certificate: reactivate it
+          const candidates = await PurchaseCertificate.filter({ serialNumber: report.serialNumber, status: 'stolen' });
+          const owned = (candidates || []).filter((c) =>
+            c.serialNumber === report.serialNumber && c.buyerId === report.reporterNationalId
+          );
+          const latest = owned.length > 0
+            ? [...owned].sort((a, b) => (a.created_date < b.created_date ? 1 : -1))[0]
+            : null;
+
+          if (latest) {
+            await PurchaseCertificate.update(latest.id, { status: 'active' });
+          } else {
+            // 2) no certificate: issue one from the report data (the reporter is recorded as buyer and seller)
+            const { data: ownerData } = await findUserByNationalId({ nationalId: report.reporterNationalId });
+            const ownerName = ownerData?.user?.full_name || report.reporterNationalId;
+            const newCertificateNumber = await generateCertificateNumber();
+            await createPurchaseCertificate({
+              certificateNumber: newCertificateNumber,
+              buyerIdType: report.reporterIdType,
+              buyerId: report.reporterNationalId,
+              buyerName: ownerName,
+              buyerNameAtSale: ownerName,
+              sellerIdType: report.reporterIdType,
+              sellerNationalId: report.reporterNationalId,
+              sellerPhone: report.reporterPhone || '',
+              deviceType: report.deviceType,
+              serialNumber: report.serialNumber,
+              purchasePrice: 0,
+              issueDate: new Date().toISOString().split('T')[0],
+              status: 'active'
+            });
+          }
+        } catch (certError) {
+          console.error("Failed to restore certificate after closure:", certError);
+        }
+      }
+
       fetchAdminData();
       setEditingReport(null); // Close the edit view
     } catch (error) {
@@ -1683,9 +1753,9 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
     try {
       const updatedData = {
         ...editFormData,
-        // The serial number is normalized on the backend if edited (removed client-side normalizeSerial)
+        // the serial is normalized on the server
       };
-      // NEW: Use the backend function to update the report
+      // update the report
       await updateStolenDeviceReport({ reportId: editingReport.id, updates: updatedData });
       setEditingReport(null);
       fetchAdminData();
@@ -1716,7 +1786,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
       <CardHeader className="p-0 sm:p-2">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
           <CardTitle className="text-xl font-bold text-gray-800 flex items-center">
-            <UserCog className="w-6 h-6 ml-2 text-blue-600" />
+            <UserCog className="w-6 h-6 ml-2 text-teal-600" />
             {t('manageReports')}
           </CardTitle>
           <Button
@@ -1731,7 +1801,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
         <div className="flex border-b">
           <button
             onClick={() => handleAdminTabChange('reports')}
-            className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 py-3 px-2 sm:px-4 relative text-sm sm:text-base font-bold ${activeAdminTab === 'reports' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
           >
             {t('theftReports')}
             {newReportsCount > 0 && (
@@ -1742,7 +1812,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
           </button>
           <button
             onClick={() => handleAdminTabChange('certs')}
-            className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 py-3 px-2 sm:px-4 text-sm sm:text-base font-bold ${activeAdminTab === 'certs' ? 'border-b-2 border-teal-600 text-teal-600' : 'text-gray-500'}`}
           >
             {t('certificates')}
           </button>
@@ -1824,7 +1894,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                     {t('activeFilters')}:
                   </span>
                   {searchTerm && (
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                    <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs">
                       {t('searchText')}: {searchTerm}
                     </span>
                   )}
@@ -1855,7 +1925,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
 
             {adminLoading ? (
               <div className="text-center p-8 text-gray-500">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mx-auto"></div>
                 <p>{t('loadingData')}</p>
               </div>
             ) : (
@@ -1879,7 +1949,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                       {filteredReports.map((device) =>
                         <React.Fragment key={device.id}>
                           <tr className={`border-b hover:bg-gray-50 ${device.status === 'pending_closure' ? 'bg-yellow-50' : ''}`}>
-                            <td className="p-2 font-bold text-blue-600">{device.reportId}</td>
+                            <td className="p-2 font-bold text-teal-600">{device.reportId}</td>
                             <td className="p-2 font-mono" dir="ltr" style={{ textAlign: 'left' }}>{device.serialNumber}</td>
                             <td className="p-2">{t(`device${device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1)}`)}</td>
                             <td className="p-2">{new Date(device.created_date).toLocaleDateString(translations[t('lang')].locale)}</td>
@@ -1904,7 +1974,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                               <td colSpan="8" className="p-0">
                                 {/* Edit Form - Remains the same */}
                                 <div className="bg-white p-6 m-4 rounded-lg shadow-md border space-y-4">
-                                  <h3 className="text-lg font-bold mb-4 text-blue-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
+                                  <h3 className="text-lg font-bold mb-4 text-teal-700">{t('editReport')}: <span className="font-mono">{device.serialNumber}</span></h3>
 
                                   {device.status === 'pending_closure' && (
                                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
@@ -2009,7 +2079,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                                     </div>
 
                                     <div className="flex gap-2">
-                                      <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                      <Button onClick={handleUpdateReport} className="flex-1 bg-teal-600 hover:bg-teal-700">{t('save')}</Button>
                                       <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
                                     </div>
                                   </div>
@@ -2030,7 +2100,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                       <div className={`p-4 border rounded-lg shadow-sm ${device.status === 'pending_closure' ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-bold text-blue-600">{device.reportId}</p>
+                            <p className="font-bold text-teal-600">{device.reportId}</p>
                             <p className="font-mono text-sm text-gray-700" dir="ltr">{device.serialNumber}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${device.status === 'active' ? 'bg-red-100 text-red-800' :
@@ -2055,7 +2125,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                         <div className="bg-gray-50 p-4 -mt-2 rounded-b-lg border-x border-b">
                           {/* Mobile Edit Form */}
                           <div className="space-y-4">
-                            <h3 className="text-lg font-bold mb-2 text-blue-700">{t('editReport')}</h3>
+                            <h3 className="text-lg font-bold mb-2 text-teal-700">{t('editReport')}</h3>
 
                             {device.status === 'pending_closure' && (
                               <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4 text-sm">
@@ -2124,7 +2194,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                               </div>
 
                               <div className="flex gap-2">
-                                <Button onClick={handleUpdateReport} className="flex-1 bg-blue-600 hover:bg-blue-700">{t('save')}</Button>
+                                <Button onClick={handleUpdateReport} className="flex-1 bg-teal-600 hover:bg-teal-700">{t('save')}</Button>
                                 <Button variant="outline" onClick={() => setEditingReport(null)} className="flex-1">{t('cancel')}</Button>
                               </div>
                             </div>
@@ -2159,7 +2229,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                 <div key={cert.id} className="border rounded-lg p-3 sm:p-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:shadow-md hover:bg-white">
                   <div className="flex-grow w-full">
                     <div className="flex justify-between items-center gap-2">
-                      <p className="font-bold text-blue-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-blue-900">{cert.certificateNumber}</span></p>
+                      <p className="font-bold text-teal-700 text-sm sm:text-base">{t('certificateNumber')}: <span className="font-mono text-teal-900">{cert.certificateNumber}</span></p>
                       <p className="text-xs sm:text-sm text-gray-600 mt-1">{t('serialNumberLabel')}: <span className="font-mono">{cert.serialNumber}</span></p>
                       <p className="text-xs sm:text-sm text-gray-600">{t('buyerName')}: {cert.buyerName}</p>
                     </div>
@@ -2173,7 +2243,7 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
                     <Button onClick={() => handleShowHistory(cert.serialNumber)} variant="outline" size="sm" className="flex-1 sm:flex-grow-0">
                       {t('viewHistory')}
                     </Button>
-                    <Button onClick={() => printCertificate(cert)} className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-grow-0" size="sm">
+                    <Button onClick={() => printCertificate(cert)} className="bg-teal-600 hover:bg-teal-700 flex-1 sm:flex-grow-0" size="sm">
                       <Printer className="w-4 h-4 ml-2" />
                       {t('printCertificate')}
                     </Button>
@@ -2188,10 +2258,10 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
             {showHistoryModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
                 <div className="bg-white p-6 rounded-lg max-w-2xl w-full mx-4 shadow-xl">
-                  <h3 className="text-lg font-bold mb-4 text-blue-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
+                  <h3 className="text-lg font-bold mb-4 text-teal-800">{t('certificateHistory')} - <span className="font-mono">{selectedSerialNumber}</span></h3>
                   {historyLoading ? (
                     <div className="text-center p-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-2"></div>
                       <p>{t('loadingData')}</p>
                     </div>
                   ) : (
@@ -2229,7 +2299,6 @@ const AdminDashboardTab = ({ t, onDataUpdate, refreshKey, onLogout, userType }) 
     </Card>);
 };
 
-// UserProfileTab component definition removed from here, as it's now imported from its own file.
 
 const translations = {
   ar: {
@@ -2250,6 +2319,8 @@ const translations = {
     enterSerialToStart: 'أدخل الرقم التسلسلي لبدء الفحص',
     resultWillShow: 'سيظهر هنا ما إذا كان الجهاز آمناً أم مسروقاً',
     safeDeviceTitle: '✅ جهاز آمن',
+    unknownDeviceTitle: 'ℹ️ جهاز غير مسجل',
+    deviceNotRegisteredMessage: 'لم يُعثر على أي سجل لهذا الجهاز — لا بلاغ سرقة ولا شهادة شراء مسجلة به. هذا لا يعني بالضرورة أن الجهاز آمن، فقط أنه غير مسجل بالنظام. يُنصح بالتحقق من مصدر الجهاز جيدًا قبل الشراء.',
     existingCertificate: 'تم العثور على شهادة شراء مسجلة لهذا الجهاز:',
     buyerName: 'اسم المشتري',
     issueDate: 'تاريخ الإصدار',
@@ -2400,7 +2471,17 @@ const translations = {
     confirmPasswordPlaceholder: 'أعد إدخال كلمة المرور',
     forgotPassword: 'نسيت كلمة المرور؟',
     resetPassword: 'إعادة تعيين كلمة المرور',
-    resetPasswordInstructions: 'أدخل رقم الهوية ورقم الجوال لإعادة تعيين كلمة المرور',
+    resetPasswordInstructions: 'أدخل رقم الهوية ورقم الجوال المسجّل، وسنرسل لك رمز تحقق عبر واتساب لإعادة تعيين كلمة المرور',
+    sendOtpButton: 'إرسال رمز التحقق عبر واتساب',
+    sendingOtp: 'جارٍ الإرسال...',
+    otpSentInfo: 'إذا كانت البيانات صحيحة، أرسلنا رمزًا من 6 أرقام إلى واتساب على الرقم المسجّل. الرمز صالح لمدة {minutes} دقائق ويُستخدم مرة واحدة.',
+    otpCodeLabel: 'رمز التحقق (واتساب)',
+    resendOtp: 'إعادة إرسال الرمز',
+    resendOtpIn: 'يمكنك إعادة الإرسال بعد {seconds} ثانية',
+    invalidOtpFormat: 'أدخل رمز التحقق المكوّن من 6 أرقام.',
+    invalidOtpError: 'رمز التحقق غير صحيح أو منتهي الصلاحية.',
+    otpUnavailableError: 'خدمة إرسال الرمز عبر واتساب غير متاحة حاليًا. حاول لاحقًا.',
+    tooManyAttemptsError: 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.',
     back: 'رجوع',
     cancel: 'إلغاء',
     registering: 'جاري التسجيل...',
@@ -2447,7 +2528,9 @@ const translations = {
     saveChanges: 'حفظ التغييرات',
     saving: 'جاري الحفظ...',
     userInfoUpdated: 'تم تحديث المعلومات بنجاح',
+    updateSuccessTitle: 'تم التحديث بنجاح',
     updateError: 'خطأ في تحديث المعلومات',
+    updateErrorTitle: 'خطأ في التحديث',
     userNotFound: 'المستخدم غير موجود أو البيانات غير صحيحة.',
     userAlreadyExists: 'رقم الهوية أو رقم الجوال مسجل بالفعل.',
     passwordIncorrectError: 'كلمة المرور الحالية غير صحيحة.',
@@ -2516,6 +2599,40 @@ const translations = {
     invalidIdLength: 'يجب أن يكون رقم الهوية 10 أرقام.',
     incorrectPhoneNumber: 'رقم الجوال غير صحيح',
     deviceAlreadyReportedStolen: 'هذا الجهاز مبلغ عنه كمسروق بالفعل.',
+    deviceAlreadyRegisteredActive: 'هذا الجهاز مسجّل مسبقًا بشهادة نشطة.',
+    buyerPhone: 'رقم جوال المشتري',
+    phoneChecking: 'جارٍ التحقق من الحساب...',
+    phoneFromAccount: 'تم جلب رقم الجوال المسجّل لهذا الحساب — سيصله رمز التحقق عبر واتساب.',
+    phoneNoAccount: 'لا يوجد حساب بهذا الرقم — أدخل رقم الجوال الذي سيصله رمز التحقق عبر واتساب.',
+    otpTitleReport: 'تأكيد البلاغ',
+    otpTitlePurchase: 'تأكيد عملية الشراء',
+    otpTitleRegister: 'تأكيد رقم الجوال',
+    otpDialogDescription: 'أرسلنا رمز تحقق عبر واتساب. أدخله لإتمام العملية.',
+    otpCodeReporter: 'رمز التحقق (المُبلِّغ)',
+    otpCodeSeller: 'رمز البائع',
+    otpCodeBuyer: 'رمز المشتري',
+    otpCodeRegistrant: 'رمز التحقق',
+    otpSentTo: 'أُرسل إلى {phone}',
+    otpExpiresIn: 'ينتهي الرمز خلال {time}',
+    otpExpired: 'انتهت صلاحية الرمز. اضغط "إعادة إرسال الرمز".',
+    confirmOtpButton: 'تأكيد',
+    confirming: 'جارٍ التأكيد...',
+    otpNetworkError: 'تعذر الاتصال بالخادم. حاول مرة أخرى.',
+    otpRateLimitedError: 'تم إرسال عدد كبير من الرموز لهذا الرقم. حاول لاحقًا.',
+    otpSendFailedError: 'تعذر إرسال الرمز عبر واتساب. حاول مرة أخرى بعد قليل.',
+    resendWaitError: 'انتظر قليلًا قبل طلب رمز جديد.',
+    resendLimitError: 'وصلت للحد الأقصى لإعادة الإرسال. ابدأ العملية من جديد.',
+    otpExpiredError: 'انتهت العملية. أغلق النافذة وابدأ من جديد.',
+    otpGenericError: 'حدث خطأ. حاول مرة أخرى.',
+    samePhoneNumberError: 'لا يمكن أن يكون رقم جوال البائع والمشتري نفسه — كل طرف يستلم رمزًا على جواله.',
+    otpTitlePhoneChange: 'تأكيد رقم الجوال الجديد',
+    otpCodeNewPhone: 'رمز التحقق (الرقم الجديد)',
+    phoneChangedSuccess: 'تم تغيير رقم الجوال بنجاح. ستصلك الرموز القادمة على الرقم الجديد.',
+    samePhoneError: 'الرقم الجديد هو نفس رقم جوالك الحالي.',
+    agreePrivacyBefore: 'أوافق على ',
+    privacyPolicyLink: 'سياسة الخصوصية',
+    agreePrivacyAfter: ' وأقرّ بصحة بياناتي.',
+    mustAgreePrivacyError: 'يجب الموافقة على سياسة الخصوصية لإكمال التسجيل.',
     reporterNotOwnerError: 'لا يمكن إتمام البلاغ. رقم هوية المُبلِّغ لا يتطابق مع بيانات مالك الجهاز المسجلة.',
     reporterPhoneMismatchError: 'رقم الجوال المُدخل لا يتطابق مع رقم جوال مالك الجهاز المسجل.',
     certificateNumber: 'رقم الشهادة',
@@ -2546,6 +2663,8 @@ const translations = {
     enterSerialToStart: 'Enter a serial number to start the check',
     resultWillShow: 'The result will show here whether the device is safe or stolen',
     safeDeviceTitle: '✅ Safe Device',
+    unknownDeviceTitle: 'ℹ️ Unregistered Device',
+    deviceNotRegisteredMessage: 'No record was found for this device — no theft report and no registered purchase certificate. This does not necessarily mean the device is safe, only that it is not registered in the system. Verify the device\'s source carefully before buying.',
     existingCertificate: 'A purchase certificate was found for this device:',
     buyerName: 'Buyer Name',
     issueDate: 'Issue Date',
@@ -2695,7 +2814,17 @@ const translations = {
     confirmPasswordPlaceholder: 'Re-enter password',
     forgotPassword: 'Forgot Password?',
     resetPassword: 'Reset Password',
-    resetPasswordInstructions: 'Enter your ID number and mobile number to reset your password',
+    resetPasswordInstructions: 'Enter your ID number and registered mobile number. We will send a verification code via WhatsApp to reset your password',
+    sendOtpButton: 'Send verification code via WhatsApp',
+    sendingOtp: 'Sending...',
+    otpSentInfo: 'If the details are correct, we sent a 6-digit code to the registered number on WhatsApp. The code is valid for {minutes} minutes and can be used once.',
+    otpCodeLabel: 'Verification code (WhatsApp)',
+    resendOtp: 'Resend code',
+    resendOtpIn: 'You can resend in {seconds} seconds',
+    invalidOtpFormat: 'Enter the 6-digit verification code.',
+    invalidOtpError: 'The verification code is incorrect or has expired.',
+    otpUnavailableError: 'Sending codes via WhatsApp is currently unavailable. Please try again later.',
+    tooManyAttemptsError: 'Too many attempts. Please wait a moment and try again.',
     back: 'Back',
     cancel: 'Cancel',
     registering: 'Registering...',
@@ -2742,7 +2871,9 @@ const translations = {
     saveChanges: 'Save Changes',
     saving: 'Saving...',
     userInfoUpdated: 'Information updated successfully',
+    updateSuccessTitle: 'Update Successful',
     updateError: 'Error updating information',
+    updateErrorTitle: 'Update Error',
     userNotFound: 'User not found or data is incorrect.',
     userAlreadyExists: 'The ID number or mobile number is already registered.',
     passwordIncorrectError: 'Current password is incorrect.',
@@ -2811,6 +2942,40 @@ const translations = {
     invalidIdLength: 'ID number must be 10 digits.',
     incorrectPhoneNumber: 'Incorrect mobile number',
     deviceAlreadyReportedStolen: 'This device is already reported as stolen.',
+    deviceAlreadyRegisteredActive: 'This device is already registered with an active certificate.',
+    buyerPhone: 'Buyer mobile number',
+    phoneChecking: 'Checking the account...',
+    phoneFromAccount: 'Registered mobile number for this account was filled in — the verification code will be sent to it on WhatsApp.',
+    phoneNoAccount: 'No account for this ID — enter the mobile number that should receive the WhatsApp verification code.',
+    otpTitleReport: 'Confirm the report',
+    otpTitlePurchase: 'Confirm the purchase',
+    otpTitleRegister: 'Confirm your mobile number',
+    otpDialogDescription: 'We sent a verification code on WhatsApp. Enter it to complete the operation.',
+    otpCodeReporter: 'Verification code (reporter)',
+    otpCodeSeller: 'Seller code',
+    otpCodeBuyer: 'Buyer code',
+    otpCodeRegistrant: 'Verification code',
+    otpSentTo: 'Sent to {phone}',
+    otpExpiresIn: 'The code expires in {time}',
+    otpExpired: 'The code has expired. Press "Resend code".',
+    confirmOtpButton: 'Confirm',
+    confirming: 'Confirming...',
+    otpNetworkError: 'Could not reach the server. Please try again.',
+    otpRateLimitedError: 'Too many codes were sent to this number. Try again later.',
+    otpSendFailedError: 'Could not send the code on WhatsApp. Please try again shortly.',
+    resendWaitError: 'Please wait a moment before requesting a new code.',
+    resendLimitError: 'Resend limit reached. Please start over.',
+    otpExpiredError: 'This request has expired. Close the window and start over.',
+    otpGenericError: 'Something went wrong. Please try again.',
+    samePhoneNumberError: 'The seller and the buyer cannot use the same mobile number — each one receives a code on their own phone.',
+    otpTitlePhoneChange: 'Confirm your new mobile number',
+    otpCodeNewPhone: 'Verification code (new number)',
+    phoneChangedSuccess: 'Your mobile number was changed. Future codes will be sent to the new number.',
+    samePhoneError: 'The new number is the same as your current mobile number.',
+    agreePrivacyBefore: 'I agree to the ',
+    privacyPolicyLink: 'Privacy Policy',
+    agreePrivacyAfter: ' and confirm my details are accurate.',
+    mustAgreePrivacyError: 'You must agree to the privacy policy to register.',
     reporterNotOwnerError: 'Cannot complete report. Reporter\'s ID does not match the registered owner\'s data.',
     reporterPhoneMismatchError: 'The entered mobile number does not match the registered owner\'s mobile number.',
     certificateNumber: 'Certificate Number',

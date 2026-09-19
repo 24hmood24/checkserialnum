@@ -1,0 +1,86 @@
+diff --git a/src/components/UserLoginModal.jsx b/src/components/UserLoginModal.jsx
+index 87417dd..f7aac0e 100644
+--- a/src/components/UserLoginModal.jsx
++++ b/src/components/UserLoginModal.jsx
+@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
+ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+ import { Button } from '@/components/ui/button';
+ import { Input } from '@/components/ui/input';
++import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
+ import { UserCog, Lock, User, Phone, IdCard, Key, UserPlus, Eye, EyeOff } from 'lucide-react';
+ import { motion, AnimatePresence } from 'framer-motion';
+ import { registerUser } from '@/api/functions';
+@@ -26,6 +27,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode
+     const [registerPassword, setRegisterPassword] = useState('');
+     const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+     const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
++    const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+ 
+     // Reset password form
+     const [resetId, setResetId] = useState('');
+@@ -90,6 +92,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode
+         setRegisterPassword('');
+         setRegisterConfirmPassword('');
+         setAgreedToPrivacy(false);
++        setShowPrivacyPolicy(false);
+         setResetId('');
+         setResetPhone('');
+         setNewPassword('');
+@@ -493,7 +496,17 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode
+                             onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                             className="mt-1 h-4 w-4 accent-teal-600"
+                         />
+-                        <span>{t('agreePrivacy')}</span>
++                        <span>
++                            {t('agreePrivacyBefore')}
++                            <button
++                                type="button"
++                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPrivacyPolicy(true); }}
++                                className="text-teal-600 hover:text-teal-700 underline font-medium"
++                            >
++                                {t('privacyPolicyLink')}
++                            </button>
++                            {t('agreePrivacyAfter')}
++                        </span>
+                     </label>
+                     {error && <p className="text-red-600 text-sm">{error}</p>}
+                     <Button type="submit" disabled={loading} className="w-full">
+@@ -667,6 +680,12 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode
+                         {renderContent()}
+                     </AnimatePresence>
+                 </div>
++                {/* Nested dialog: opens the same privacy-policy modal used in the footer */}
++                <PrivacyPolicyModal
++                    isOpen={showPrivacyPolicy}
++                    onClose={() => setShowPrivacyPolicy(false)}
++                    lang={lang}
++                />
+             </DialogContent>
+         </Dialog>
+     );
+diff --git a/src/pages/Home.jsx b/src/pages/Home.jsx
+index 986ffec..a8dac53 100644
+--- a/src/pages/Home.jsx
++++ b/src/pages/Home.jsx
+@@ -2504,7 +2504,9 @@ const translations = {
+     incorrectPhoneNumber: 'رقم الجوال غير صحيح',
+     deviceAlreadyReportedStolen: 'هذا الجهاز مبلغ عنه كمسروق بالفعل.',
+     deviceAlreadyRegisteredActive: 'هذا الجهاز مسجّل مسبقًا بشهادة نشطة.',
+-    agreePrivacy: 'أوافق على سياسة الخصوصية (رابطها أسفل الصفحة) وأقرّ بصحة بياناتي.',
++    agreePrivacyBefore: 'أوافق على ',
++    privacyPolicyLink: 'سياسة الخصوصية',
++    agreePrivacyAfter: ' وأقرّ بصحة بياناتي.',
+     mustAgreePrivacyError: 'يجب الموافقة على سياسة الخصوصية لإكمال التسجيل.',
+     reporterNotOwnerError: 'لا يمكن إتمام البلاغ. رقم هوية المُبلِّغ لا يتطابق مع بيانات مالك الجهاز المسجلة.',
+     reporterPhoneMismatchError: 'رقم الجوال المُدخل لا يتطابق مع رقم جوال مالك الجهاز المسجل.',
+@@ -2806,7 +2808,9 @@ const translations = {
+     incorrectPhoneNumber: 'Incorrect mobile number',
+     deviceAlreadyReportedStolen: 'This device is already reported as stolen.',
+     deviceAlreadyRegisteredActive: 'This device is already registered with an active certificate.',
+-    agreePrivacy: 'I agree to the privacy policy (link at the bottom of the page) and confirm my details are accurate.',
++    agreePrivacyBefore: 'I agree to the ',
++    privacyPolicyLink: 'Privacy Policy',
++    agreePrivacyAfter: ' and confirm my details are accurate.',
+     mustAgreePrivacyError: 'You must agree to the privacy policy to register.',
+     reporterNotOwnerError: 'Cannot complete report. Reporter\'s ID does not match the registered owner\'s data.',
+     reporterPhoneMismatchError: 'The entered mobile number does not match the registered owner\'s mobile number.',

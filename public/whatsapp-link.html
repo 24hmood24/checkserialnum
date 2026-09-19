@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>ربط واتساب</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
+    main { max-width: 460px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 16px; }
+    .state { padding: 10px 14px; border-radius: 10px; background: #334155; margin-bottom: 16px; font-weight: 600; }
+    .state.open { background: #065f46; }
+    .state.err { background: #7f1d1d; }
+    img { display: block; margin: 12px auto; background: #fff; padding: 8px; border-radius: 12px; max-width: 100%; }
+    label, p { font-size: 14px; line-height: 1.7; }
+    input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 16px; direction: ltr; text-align: left; }
+    button { margin-top: 10px; padding: 10px 16px; border: 0; border-radius: 8px; background: #14b8a6; color: #04211d; font-weight: 700; cursor: pointer; }
+    button.danger { background: #ef4444; color: #fff; }
+    .code { font-size: 32px; letter-spacing: 4px; text-align: center; margin: 12px 0; direction: ltr; font-weight: 800; }
+    hr { border: 0; border-top: 1px solid #334155; margin: 20px 0; }
+    small { color: #94a3b8; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>ربط رقم واتساب بالنظام</h1>
+  <div id="state" class="state">جارٍ التحميل…</div>
+  <div id="qrBox"></div>
+
+  <div id="linkBox" hidden>
+    <p>١) افتح واتساب في الجوال ← الأجهزة المرتبطة ← ربط جهاز، وامسح الرمز أعلاه.</p>
+    <hr />
+    <p>أو اربط برقم الجوال بدون مسح: اكتب رقم واتساب المراد ربطه (05xxxxxxxx) ثم في واتساب: الأجهزة المرتبطة ← ربط برقم الهاتف، وأدخل الرمز الذي يظهر هنا.</p>
+    <label for="phone">رقم الجوال</label>
+    <input id="phone" inputmode="numeric" placeholder="05xxxxxxxx" />
+    <button id="pairBtn" type="button">الحصول على رمز الربط</button>
+    <div id="pairCode" class="code"></div>
+  </div>
+
+  <div id="openBox" hidden>
+    <p>الرقم مربوط وجاهز لإرسال رموز التحقق.</p>
+    <button id="logoutBtn" type="button" class="danger">فك الربط وربط رقم آخر</button>
+  </div>
+  <p><small>هذه الصفحة تعمل فقط لحساب الأدمن (سجّل الدخول من الموقع أولًا في نفس المتصفح).</small></p>
+</main>
+
+<script>
+  var token = null;
+  try { token = localStorage.getItem('session_token'); } catch (e) { /* ignore */ }
+
+  var stateEl = document.getElementById('state');
+  var qrBox = document.getElementById('qrBox');
+  var linkBox = document.getElementById('linkBox');
+  var openBox = document.getElementById('openBox');
+  var pairCode = document.getElementById('pairCode');
+
+  var LABELS = {
+    open: 'متصل ✅',
+    qr: 'بانتظار الربط — امسح الرمز',
+    connecting: 'جارٍ الاتصال…',
+    closed: 'انقطع الاتصال، تتم إعادة المحاولة…',
+    logged_out: 'غير مربوط — يجهّز رمزًا جديدًا…',
+    stopped: 'متوقف'
+  };
+
+  function api(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (json) { return { ok: res.ok, status: res.status, json: json }; });
+    });
+  }
+
+  function setState(text, cls) {
+    stateEl.textContent = text;
+    stateEl.className = 'state' + (cls ? ' ' + cls : '');
+  }
+
+  function refresh() {
+    if (!token) { setState('سجّل دخول كأدمن من الموقع أولًا ثم أعد فتح هذه الصفحة.', 'err'); return; }
+    api('GET', '/api/admin/whatsapp/status').then(function (r) {
+      if (r.status === 401 || r.status === 403) { setState('هذا الحساب ليس أدمن أو انتهت الجلسة.', 'err'); return; }
+      if (r.status === 400) { setState('مزوّد واتساب ليس Baileys (تحقق من WHATSAPP_PROVIDER).', 'err'); return; }
+      if (!r.ok) { setState('تعذر جلب الحالة.', 'err'); return; }
+      var d = r.json.data;
+      setState((LABELS[d.state] || d.state) + (d.me ? ' — ' + d.me.split(':')[0].split('@')[0] : ''), d.state === 'open' ? 'open' : '');
+      qrBox.textContent = '';
+      if (d.qrDataUrl) {
+        var img = document.createElement('img');
+        img.src = d.qrDataUrl; img.alt = 'QR'; img.width = 260; img.height = 260;
+        qrBox.appendChild(img);
+      }
+      openBox.hidden = d.state !== 'open';
+      linkBox.hidden = d.state === 'open';
+    }).catch(function () { setState('تعذر الاتصال بالخادم.', 'err'); });
+  }
+
+  document.getElementById('pairBtn').addEventListener('click', function () {
+    pairCode.textContent = '…';
+    api('POST', '/api/admin/whatsapp/pair', { phoneNumber: document.getElementById('phone').value }).then(function (r) {
+      if (r.ok) { pairCode.textContent = r.json.data.code; }
+      else if (r.json.error === 'invalid_phone') { pairCode.textContent = 'رقم غير صحيح'; }
+      else if (r.json.error === 'already_linked') { pairCode.textContent = 'مربوط بالفعل'; }
+      else { pairCode.textContent = 'تعذر الحصول على الرمز، حاول بعد قليل'; }
+    });
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', function () {
+    if (!confirm('سيتم فك ربط الرقم الحالي. متأكد؟')) return;
+    api('POST', '/api/admin/whatsapp/logout').then(refresh);
+  });
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

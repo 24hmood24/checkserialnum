@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext } from 'react';
 import { User, Globe, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,15 +9,29 @@ import Home from '@/pages/Home';
 import UserLoginModal from '@/components/UserLoginModal';
 import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
 
+// support contact (header/footer), set VITE_SUPPORT_CONTACT at build time; hidden when empty
+const SUPPORT_CONTACT = (import.meta.env.VITE_SUPPORT_CONTACT || '').trim();
+
+// shared app state (auth + language)
+export const AppContext = createContext({
+  showUserLogin: false,
+  setShowUserLogin: () => {},
+  loggedInUser: null,
+  setLoggedInUser: () => {},
+  userType: null,
+  setUserType: () => {},
+  lang: 'ar',
+});
+
 export default function Layout({ children }) {
-    const [showUserLogin, setShowUserLogin] = useState(false);
+  const [showUserLogin, setShowUserLogin] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [userType, setUserType] = useState(null);
   const [lang, setLang] = useState('ar'); // Add language state
 
   useEffect(() => {
-    // Check for existing session
+    // existing session
     const storedUser = localStorage.getItem('loggedInUser');
     const storedUserType = localStorage.getItem('userType');
     const storedLang = localStorage.getItem('appLang') || 'ar';
@@ -29,7 +43,7 @@ export default function Layout({ children }) {
     setLang(storedLang);
   }, []);
 
-  // Listen for login events from other components so Layout updates without reload
+  // update when another component logs in
   useEffect(() => {
     const onLogin = (e) => {
       const d = e && e.detail;
@@ -52,14 +66,22 @@ export default function Layout({ children }) {
     setShowUserLogin(true);
   };
 
+  // logout from the header
   const handleUserLogout = () => {
     setLoggedInUser(null);
     setUserType(null);
-    localStorage.removeItem('loggedInUser');
-    localStorage.removeItem('userType');
+    try {
+      localStorage.removeItem('loggedInUser');
+      localStorage.removeItem('userType');
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('session_token');
+    } catch {
+      // localStorage unavailable
+    }
+    window.dispatchEvent(new CustomEvent('app:logout'));
   };
 
-  const pageWithProps = React.cloneElement(children, {
+  const contextValue = {
     showUserLogin,
     setShowUserLogin,
     loggedInUser,
@@ -67,17 +89,17 @@ export default function Layout({ children }) {
     userType,
     setUserType,
     lang // Pass language to child components
-  });
+  };
 
   return (
-    <>
+    <AppContext.Provider value={contextValue}>
       <style>{`
         .body-bg {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #134e4a 0%, #0f172a 100%);
           min-height: 100vh;
         }
         .gradient-bg-header {
-          background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+          background: linear-gradient(135deg, #0f172a 0%, #0f766e 55%, #2dd4bf 100%);
           position: relative;
           overflow: hidden;
         }
@@ -140,27 +162,31 @@ export default function Layout({ children }) {
               </div>
               <div className="text-left relative z-10 flex flex-col gap-2">
                 <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-2 sm:p-4 border border-white border-opacity-30">
-                  <p className="text-xs sm:text-sm text-white text-opacity-80 mb-1">
-                    {lang === 'ar' ? 'خط المساعدة' : 'Help Line'}
-                  </p>
-                  <p className="text-base sm:text-2xl font-bold text-white mb-2 sm:mb-3">911</p>
+                  {SUPPORT_CONTACT && (
+                    <>
+                      <p className="text-xs sm:text-sm text-white text-opacity-80 mb-1">
+                        {lang === 'ar' ? 'للتواصل والدعم' : 'Support'}
+                      </p>
+                      <p className="text-base sm:text-2xl font-bold text-white mb-2 sm:mb-3">{SUPPORT_CONTACT}</p>
+                    </>
+                  )}
 
-                  {/* Show login button only when user is not logged in */}
-                  {!loggedInUser &&
+                  {/* Login button for guests, logout button once signed in */}
+                  {loggedInUser ? (
+                    <Button onClick={handleUserLogout} className="bg-white bg-opacity-30 hover:bg-opacity-40 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 w-full">
+                      <LogOut className="ml-1 sm:ml-2 h-3 sm:h-4 w-3 sm:w-4" />
+                      {lang === 'ar' ? 'تسجيل خروج' : 'Logout'}
+                    </Button>
+                  ) : (
                     <Button onClick={handleUserLoginClick} className="bg-white bg-opacity-30 hover:bg-opacity-40 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm border border-white border-opacity-20 w-full">
                       <Settings className="ml-1 sm:ml-2 h-3 sm:h-4 w-3 sm:w-4" />
                       {lang === 'ar' ? 'تسجيل دخول' : 'Login'}
                     </Button>
-                  }
+                  )}
                 </div>
 
                 {/* Language toggle button */}
                 <div className="flex gap-2">
-                  {loggedInUser && userType === 'admin' && (
-                    <a href="/admin-seed" className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300">
-                      Admin
-                    </a>
-                  )}
                   <Button
                     onClick={handleLanguageChange}
                     variant="outline"
@@ -174,7 +200,7 @@ export default function Layout({ children }) {
               </div>
             </div>
           </div>
-          </header>
+        </header>
 
         <div className="bg-amber-100 border-b-2 border-amber-400 text-amber-900 text-center py-2 px-3 text-xs sm:text-sm font-semibold">
           {lang === 'ar'
@@ -183,7 +209,7 @@ export default function Layout({ children }) {
         </div>
 
         <main className="flex-grow">
-          {pageWithProps}
+          {children}
         </main>
 
         <footer className="bg-gray-800/50 backdrop-blur-sm text-white py-4 sm:py-6 mt-8 sm:mt-12 border-t border-white/20">
@@ -194,13 +220,13 @@ export default function Layout({ children }) {
                 `Public Security - Kingdom of Saudi Arabia ${new Date().getFullYear()}`
               }
             </p>
-                        <p className="text-gray-300 text-xs sm:text-sm">
+            <p className="text-gray-300 text-xs sm:text-sm">
               {lang === 'ar' ?
-                'جميع الحقوق محفوظة | للاستفسارات: 000' :
-                'All Rights Reserved | For inquiries: 000'
+                `جميع الحقوق محفوظة${SUPPORT_CONTACT ? ` | للاستفسارات: ${SUPPORT_CONTACT}` : ''}` :
+                `All Rights Reserved${SUPPORT_CONTACT ? ` | For inquiries: ${SUPPORT_CONTACT}` : ''}`
               }
             </p>
-                        <p className="text-gray-400 text-[10px] sm:text-xs mt-1">
+            <p className="text-gray-400 text-[10px] sm:text-xs mt-1">
               {lang === 'ar' ?
                 'مشروع تجريبي مستقل لأغراض تعليمية — غير رسمي' :
                 'Independent demo project for educational purposes — unofficial'
@@ -221,7 +247,7 @@ export default function Layout({ children }) {
           lang={lang}
         />
       </div>
-    </>);
+    </AppContext.Provider>);
 
 }
 

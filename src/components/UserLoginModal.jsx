@@ -3,11 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
 import { UserCog, Lock, User, Phone, IdCard, Key, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { registerUser } from '@/api/functions';
+import { startRegistration, confirmAction, resendAction } from '@/api/functions';
+import { OtpCodesForm } from '@/components/OtpDialog';
 import { loginUser } from '@/api/functions';
-import { validateResetRequest } from '@/api/functions';
+import { requestResetOtp } from '@/api/functions';
 import { resetPassword } from '@/api/functions';
 
 export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode = 'login', onClose, lang = 'ar' }) {
@@ -25,12 +27,19 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
     const [registerPhone, setRegisterPhone] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
     const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+    const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+    const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+    // pending registration (waiting for the WhatsApp code)
+    const [regOtp, setRegOtp] = useState(null);
 
     // Reset password form
     const [resetId, setResetId] = useState('');
     const [resetPhone, setResetPhone] = useState('');
-    const [userToResetId, setUserToResetId] = useState(null);
     const [newPassword, setNewPassword] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [otpMinutes, setOtpMinutes] = useState(5);
+    const [resendSeconds, setResendSeconds] = useState(0);
+    const [info, setInfo] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
     // Password visibility states
@@ -77,7 +86,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         const firstDigit = idNumber.charAt(0);
         if (firstDigit === '1') return 'national_id';
         if (firstDigit === '2') return 'resident_id';
-        if (firstDigit === '7') return 'commercial_reg';
+        if (firstDigit === '3' || firstDigit === '7') return 'commercial_reg';
         return null;
     };
 
@@ -89,10 +98,15 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         setRegisterPhone('');
         setRegisterPassword('');
         setRegisterConfirmPassword('');
+        setAgreedToPrivacy(false);
+        setShowPrivacyPolicy(false);
+        setRegOtp(null);
         setResetId('');
         setResetPhone('');
-        setUserToResetId(null);
         setNewPassword('');
+        setOtpCode('');
+        setResendSeconds(0);
+        setInfo('');
         setConfirmNewPassword('');
         setError('');
         setShowLoginPassword(false);
@@ -124,9 +138,9 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         try {
             const identifier = normalizeNumbers(loginId);
             
-            const { data: user, error: loginError } = await loginUser({ 
-                identifier: identifier, 
-                password: loginPassword 
+            const { data: user, error: loginError } = await loginUser({
+                nationalId: identifier,
+                password: loginPassword
             });
 
             if (loginError) {
@@ -191,8 +205,15 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
             return;
         }
 
+        if (!agreedToPrivacy) {
+            setError(t('mustAgreePrivacyError'));
+            setLoading(false);
+            return;
+        }
+
         try {
-            const { data: newUser, error: registerError } = await registerUser({
+            // step 1: the server sends a code, the account is created after it is confirmed
+            const { data: started, error: registerError } = await startRegistration({
                 national_id: nationalId,
                 id_type: idType,
                 full_name: registerName,
@@ -200,22 +221,28 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                 password: registerPassword
             });
 
-            if (registerError) {
-                 if(registerError.response?.data?.error === 'user_exists') {
-                    setError(t('userAlreadyExists'));
-                 } else {
-                    setError(t('registerError'));
-                 }
+            if (registerError || !started) {
+                const registerErrors = {
+                    user_exists: 'userAlreadyExists',
+                    otp_unavailable: 'otpUnavailableError',
+                    otp_rate_limited: 'otpRateLimitedError',
+                    otp_send_failed: 'otpSendFailedError',
+                    rate_limited: 'tooManyAttemptsError',
+                    invalid_phone: 'invalidPhoneError',
+                    weak_password: 'invalidPasswordError',
+                };
+                setError(t(registerErrors[registerError] || 'registerError'));
                 setLoading(false);
                 return;
             }
 
-            if (newUser) {
-                setError('');
-                alert(t('registerSuccess') + ' ' + t('canLoginNow'));
-                setMode('login');
-                resetForms();
-            }
+            setRegOtp({
+                actionId: started.actionId,
+                maskedPhone: started.targets[0]?.maskedPhone,
+                expiresInSeconds: started.expiresInSeconds,
+                resendAfterSeconds: started.resendAfterSeconds
+            });
+            setMode('register_otp');
 
         } catch (error) {
             console.error("Registration error:", error);
@@ -225,43 +252,83 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         }
     };
 
-    const handleValidateResetRequest = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
+    // resend countdown
+    useEffect(() => {
+        if (resendSeconds <= 0) return undefined;
+        const timer = setTimeout(() => setResendSeconds((s) => s - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [resendSeconds]);
 
+    const otpErrorMessage = (code) => {
+        if (code === 'otp_unavailable') return t('otpUnavailableError');
+        if (code === 'rate_limited') return t('tooManyAttemptsError');
+        return t('resetPasswordError');
+    };
+
+    // send the code (first step and the resend button)
+    const sendResetOtp = async () => {
         const nationalId = normalizeNumbers(resetId);
         const phoneNumber = normalizeNumbers(resetPhone);
 
         if (nationalId.length !== 10 || phoneNumber.length !== 10) {
             setError(t('invalidIdOrPhoneFormat'));
-            setLoading(false);
-            return;
+            return false;
         }
 
+        const { data, error: otpError } = await requestResetOtp({ nationalId, phoneNumber });
+        if (otpError || !data) {
+            setError(otpErrorMessage(otpError));
+            return false;
+        }
+        setOtpMinutes(Math.max(1, Math.round((data.expiresInSeconds || 300) / 60)));
+        setResendSeconds(data.resendAfterSeconds || 60);
+        setInfo(t('otpSentInfo'));
+        return true;
+    };
+
+    const handleValidateResetRequest = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        setInfo('');
+
         try {
-            const { data, error: validationError } = await validateResetRequest({ nationalId, phoneNumber });
-
-            if (validationError || !data.success) {
-                setError(t('userNotFound'));
-                setLoading(false);
-                return;
+            if (await sendResetOtp()) {
+                setOtpCode('');
+                setMode('set_new_password');
             }
-
-            setUserToResetId(data.userId);
-            setMode('set_new_password');
         } catch (err) {
-            console.error("Validation reset request error:", err);
+            console.error("Request reset code error:", err);
             setError(t('resetPasswordError'));
         } finally {
             setLoading(false);
         }
     };
-    
+
+    const handleResendOtp = async () => {
+        setError('');
+        setInfo('');
+        setLoading(true);
+        try {
+            await sendResetOtp();
+        } catch (err) {
+            console.error("Resend reset code error:", err);
+            setError(t('resetPasswordError'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSetNewPassword = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+
+        if (normalizeNumbers(otpCode).replace(/\D/g, '').length !== 6) {
+            setError(t('invalidOtpFormat'));
+            setLoading(false);
+            return;
+        }
 
         if (!validatePassword(newPassword)) {
             setError(t('invalidPasswordError'));
@@ -276,10 +343,15 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
         }
 
         try {
-            const { data, error: resetError } = await resetPassword({ userId: userToResetId, newPassword });
+            const { data, error: resetError } = await resetPassword({
+                nationalId: normalizeNumbers(resetId),
+                phoneNumber: normalizeNumbers(resetPhone),
+                otp: normalizeNumbers(otpCode).replace(/\D/g, ''),
+                newPassword,
+            });
 
             if (resetError || !data.success) {
-                setError(t('resetPasswordError'));
+                setError(resetError === 'invalid_code' ? t('invalidOtpError') : otpErrorMessage(resetError));
                 setLoading(false);
                 return;
             }
@@ -354,7 +426,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('register')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('register')}
                         </button>
@@ -477,6 +549,25 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                             </button>
                         </div>
                     </div>
+                    <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={agreedToPrivacy}
+                            onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                            className="mt-1 h-4 w-4 accent-teal-600"
+                        />
+                        <span>
+                            {t('agreePrivacyBefore')}
+                            <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPrivacyPolicy(true); }}
+                                className="text-teal-600 hover:text-teal-700 underline font-medium"
+                            >
+                                {t('privacyPolicyLink')}
+                            </button>
+                            {t('agreePrivacyAfter')}
+                        </span>
+                    </label>
                     {error && <p className="text-red-600 text-sm">{error}</p>}
                     <Button type="submit" disabled={loading} className="w-full">
                         {loading ? t('registering') : t('register')}
@@ -485,7 +576,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('back')}
                         </button>
@@ -539,13 +630,13 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                     </div>
                     {error && <p className="text-red-600 text-sm">{error}</p>}
                     <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? t('verifying') : t('verifyButton')}
+                        {loading ? t('sendingOtp') : t('sendOtpButton')}
                     </Button>
                     <div className="text-center">
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('back')}
                         </button>
@@ -564,7 +655,41 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                     onSubmit={handleSetNewPassword} 
                     className="space-y-4"
                 >
-                    <p className="text-sm text-gray-600 mb-4">{t('enterNewPassword')}</p>
+                    {info && (
+                        <p className="text-sm text-teal-800 bg-teal-50 border border-teal-200 rounded-md p-3">
+                            {info.replace('{minutes}', String(otpMinutes))}
+                        </p>
+                    )}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                            <Lock className="w-4 h-4 ml-2" />
+                            {t('otpCodeLabel')}
+                        </label>
+                        <Input
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(enforceNumeric(e.target.value).slice(0, 6))}
+                            placeholder="123456"
+                            required
+                            dir="ltr"
+                            className="text-center tracking-[0.5em] text-lg"
+                        />
+                        <div className="mt-2 text-center">
+                            <button
+                                type="button"
+                                onClick={handleResendOtp}
+                                disabled={loading || resendSeconds > 0}
+                                className="text-teal-600 hover:underline text-sm disabled:text-gray-400 disabled:no-underline"
+                            >
+                                {resendSeconds > 0
+                                    ? t('resendOtpIn').replace('{seconds}', String(resendSeconds))
+                                    : t('resendOtp')}
+                            </button>
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-600">{t('enterNewPassword')}</p>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                             <Key className="w-4 h-4 ml-2" />
@@ -622,7 +747,7 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         <button
                             type="button"
                             onClick={() => setMode('login')}
-                            className="text-blue-600 hover:underline text-sm"
+                            className="text-teal-600 hover:underline text-sm"
                         >
                             {t('backToLogin')}
                         </button>
@@ -630,17 +755,59 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                 </motion.form>
             );
         }
+        if (mode === 'register_otp' && regOtp) {
+            return (
+                <motion.div
+                    key="register_otp"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                >
+                    <OtpCodesForm
+                        key={regOtp.actionId}
+                        t={t}
+                        fields={[{ role: 'registrant', label: t('otpCodeRegistrant'), maskedPhone: regOtp.maskedPhone }]}
+                        expiresInSeconds={regOtp.expiresInSeconds}
+                        resendAfterSeconds={regOtp.resendAfterSeconds}
+                        onConfirm={async (codes) => {
+                            const { data: newUser, error: confirmError } = await confirmAction({ actionId: regOtp.actionId, codes });
+                            if (confirmError === 'invalid_code' || confirmError === 'rate_limited' || confirmError === 'network_error') {
+                                return { error: confirmError };
+                            }
+                            if (confirmError || !newUser) {
+                                // e.g. the ID was registered in the meantime
+                                setError(t(confirmError === 'user_exists' ? 'userAlreadyExists' : 'registerError'));
+                                setRegOtp(null);
+                                setMode('register');
+                                return {};
+                            }
+                            setError('');
+                            alert(t('registerSuccess') + ' ' + t('canLoginNow'));
+                            setMode('login');
+                            resetForms();
+                            return {};
+                        }}
+                        onResend={async () => {
+                            const { error: resendError } = await resendAction(regOtp.actionId);
+                            return { error: resendError };
+                        }}
+                        onCancel={() => { setRegOtp(null); setMode('register'); }}
+                    />
+                </motion.div>
+            );
+        }
         return null;
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-                        <DialogContent className="sm:max-w-md" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <DialogContent className="sm:max-w-md" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
                 <DialogHeader>
                     <DialogTitle className="text-center text-xl font-bold flex items-center justify-center">
-                        <UserCog className="w-6 h-6 ml-2 text-blue-600" />
+                        <UserCog className="w-6 h-6 ml-2 text-teal-600" />
                         {mode === 'login' ? t('userLoginTitle') : 
                          mode === 'register' ? t('register') : 
+                         mode === 'register_otp' ? t('otpTitleRegister') : 
                          t('resetPassword')}
                     </DialogTitle>
                 </DialogHeader>
@@ -649,6 +816,12 @@ export default function UserLoginModal({ isOpen, onLoginSuccess, t, initialMode 
                         {renderContent()}
                     </AnimatePresence>
                 </div>
+                {/* Nested dialog: opens the same privacy-policy modal used in the footer */}
+                <PrivacyPolicyModal
+                    isOpen={showPrivacyPolicy}
+                    onClose={() => setShowPrivacyPolicy(false)}
+                    lang={lang}
+                />
             </DialogContent>
         </Dialog>
     );

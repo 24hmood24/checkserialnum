@@ -1,4 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80" viewBox="0 0 240 80">
-  <rect width="100%" height="100%" fill="#0ea5e9" rx="8" />
-  <text x="50%" y="50%" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="#fff" dominant-baseline="middle" text-anchor="middle">Device Check</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#134e4a" />
+      <stop offset="55%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#2dd4bf" />
+    </linearGradient>
+  </defs>
+  <path d="M100 12 L172 40 V96 C172 140 142 172 100 188 C58 172 28 140 28 96 V40 Z"
+        fill="url(#shieldGrad)" stroke="#0f172a" stroke-width="3" />
+  <path d="M100 22 L162 46 V96 C162 134 136 162 100 176 C64 162 38 134 38 96 V46 Z"
+        fill="none" stroke="#f59e0b" stroke-width="2.5" opacity="0.85" />
+  <path d="M68 100 L90 122 L134 76" fill="none" stroke="#ffffff" stroke-width="12"
+        stroke-linecap="round" stroke-linejoin="round" />
 </svg>

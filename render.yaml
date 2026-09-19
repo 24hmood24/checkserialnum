@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: checkserialnum
+    runtime: node
+    plan: free
+    # --include=dev: vite is a devDependency
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # MongoDB connection string (Atlas: Cluster -> Connect -> Drivers)
+      - key: MONGODB_URI
+        sync: false
+      # signs login tokens
+      - key: SESSION_SECRET
+        generateValue: true
+      # admin account (if not set, a random password is printed once in the log)
+      - key: ADMIN_NATIONAL_ID
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PHONE
+        sync: false
+      # WhatsApp codes (baileys or meta, see README)
+      - key: WHATSAPP_PROVIDER
+        value: baileys
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_TEMPLATE_NAME
+        sync: false

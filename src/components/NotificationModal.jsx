@@ -9,7 +9,7 @@ export default function NotificationModal({ isOpen, onClose, title, children, st
     success: 'from-green-500 to-emerald-600',
     danger: 'from-red-500 to-rose-600',
     warning: 'from-amber-500 to-orange-600',
-    default: 'from-blue-500 to-indigo-600',
+    default: 'from-teal-500 to-teal-600',
   };
 
   return (
